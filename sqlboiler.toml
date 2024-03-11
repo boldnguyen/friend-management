@@ -1,0 +1,17 @@
+schema="public"
+pkgname="models"
+output="internal/models"
+wipe=true
+add-global-variant=true
+add-enum-types=true
+no-hooks=true
+no-tests=true
+
+[psql]
+    dbname="friend-management"
+    host="localhost" 
+    port=5432
+    user="friend-management"
+    pass="1234"
+    sslmode="disable"
+    blacklist=["schema_migrations"]
