@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
 	"github.com/boldnguyen/friend-management/internal/service"
@@ -40,8 +41,14 @@ func (h *friendHandler) AddFriend(w http.ResponseWriter, r *http.Request) {
 	// Call the FriendService to add the friend connection
 	err := h.service.AddFriend(ctx, friendRequest.Friends)
 	if err != nil {
-		// Respond with an error message if the friend connection cannot be added
-		response.RespondErr(ctx, w, http.StatusInternalServerError, "Failed to add friend boy")
+		// Check if the error is due to the users already being friends
+		if strings.Contains(err.Error(), "already friends") {
+			response.RespondErr(ctx, w, http.StatusBadRequest, "They are already friends")
+			return
+		}
+
+		// Respond with an error message for other errors
+		response.RespondErr(ctx, w, http.StatusInternalServerError, "Failed to add friend")
 		return
 	}
 

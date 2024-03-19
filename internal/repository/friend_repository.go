@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/pkg/errors"
 )
@@ -15,8 +16,8 @@ type FriendRepository interface {
 	// GetUserIDByEmail retrieves the user ID associated with a given email address from the database.
 	GetUserIDByEmail(ctx context.Context, email string) (int, error)
 
-	// CreateUser inserts a new user with a default name and the given email address into the database.
-	CreateUser(ctx context.Context, email string) (int, error)
+	// AreFriends check if users are friend or not
+	AreFriends(ctx context.Context, userID1, userID2 int) (bool, error)
 }
 
 // friendRepository is the concrete implementation of FriendRepository.
@@ -75,17 +76,17 @@ func (r *friendRepository) GetUserIDByEmail(ctx context.Context, email string) (
 	var userID int
 	err := r.db.QueryRowContext(ctx, "SELECT id FROM users WHERE email = $1", email).Scan(&userID)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to get user ID by email")
+		return 0, fmt.Errorf("failed to get user ID by email %s %w", email, err)
 	}
 	return userID, nil
 }
 
-// CreateUser inserts a new user with a default name and the given email address into the database.
-func (r *friendRepository) CreateUser(ctx context.Context, email string) (int, error) {
-	var userID int
-	err := r.db.QueryRowContext(ctx, "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id", "DefaultName", email).Scan(&userID)
+// AreFriends checks if two users are already friends.
+func (r *friendRepository) AreFriends(ctx context.Context, userID1, userID2 int) (bool, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM friend_connections WHERE (user_id1 = $1 AND user_id2 = $2) OR (user_id1 = $2 AND user_id2 = $1)", userID1, userID2).Scan(&count)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to create user")
+		return false, errors.Wrap(err, "failed to check friend connection")
 	}
-	return userID, nil
+	return count > 0, nil
 }

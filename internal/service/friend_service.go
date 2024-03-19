@@ -1,8 +1,8 @@
+// service.go
 package service
 
 import (
 	"context"
-	"log"
 
 	"github.com/boldnguyen/friend-management/internal/repository"
 	"github.com/pkg/errors"
@@ -34,30 +34,26 @@ func (s *friendService) AddFriend(ctx context.Context, emails []string) error {
 	// Get user IDs from emails
 	userID1, err := s.repo.GetUserIDByEmail(ctx, emails[0])
 	if err != nil {
-		// If the user doesn't exist, create the user and obtain the user ID
-		log.Printf("Creating user with email %s", emails[0])
-		userID1, err = s.repo.CreateUser(ctx, emails[0])
-		if err != nil {
-			log.Printf("Error creating user with email %s: %v", emails[0], err)
-			return errors.Wrap(err, "failed to create user")
-		}
+		return errors.Wrap(err, "failed to get user ID for email ")
 	}
 
 	userID2, err := s.repo.GetUserIDByEmail(ctx, emails[1])
 	if err != nil {
-		// If the user doesn't exist, create the user and obtain the user ID
-		log.Printf("Creating user with email %s", emails[1])
-		userID2, err = s.repo.CreateUser(ctx, emails[1])
-		if err != nil {
-			log.Printf("Error creating user with email %s: %v", emails[1], err)
-			return errors.Wrap(err, "failed to create user")
-		}
+		return errors.Wrap(err, "failed to get user ID for email ")
+	}
+
+	// Check if the users are already friends
+	alreadyFriends, err := s.repo.AreFriends(ctx, userID1, userID2)
+	if err != nil {
+		return errors.Wrap(err, "failed to check if users are already friends")
+	}
+	if alreadyFriends {
+		return errors.New("They are already friends")
 	}
 
 	// Add friend connection using user IDs
 	err = s.repo.AddFriend(ctx, userID1, userID2)
 	if err != nil {
-		log.Printf("Error adding friend connection: %v", err)
 		return errors.Wrap(err, "failed to add friend")
 	}
 
