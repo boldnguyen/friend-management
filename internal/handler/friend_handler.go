@@ -3,55 +3,42 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
 	"github.com/boldnguyen/friend-management/internal/service"
 )
 
-// FriendHandler defines the HTTP handler interface for managing friend connections.
-type FriendHandler interface {
-	// AddFriend handles the HTTP request to create a friend connection between two users.
-	AddFriend(w http.ResponseWriter, r *http.Request)
+// CreateFriendConnectionRequest defines the structure of the request for creating a friend connection.
+type CreateFriendConnectionRequest struct {
+	Friends []string `json:"friends" validate:"required,min=2,max=2,dive,email"`
 }
 
-// friendHandler is the concrete implementation of FriendHandler.
-type friendHandler struct {
-	service service.FriendService
-}
+// NewHandler creates a new HTTP handler for creating a friend connection.
+func NewHandler(friendService service.FriendService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req CreateFriendConnectionRequest
+		ctx := r.Context()
 
-// NewFriendHandler creates a new instance of FriendHandler with the provided service.
-func NewFriendHandler(service service.FriendService) FriendHandler {
-	return &friendHandler{service: service}
-}
-
-// AddFriend handles the HTTP request to create a friend connection between two users.
-func (h *friendHandler) AddFriend(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// Decode the JSON request body
-	var friendRequest struct {
-		Friends []string `json:"friends"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&friendRequest); err != nil {
-		response.RespondErr(ctx, w, http.StatusBadRequest, "Invalid request")
-		return
-	}
-
-	// Call the FriendService to add the friend connection
-	err := h.service.AddFriend(ctx, friendRequest.Friends)
-	if err != nil {
-		// Check if the error is due to the users already being friends
-		if strings.Contains(err.Error(), "already friends") {
-			response.RespondErr(ctx, w, http.StatusBadRequest, "They are already friends")
+		// Decode the JSON data from the request body
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			response.RespondErr(ctx, w, http.StatusBadRequest, response.ErrMsgDecodeRequest+": "+err.Error())
 			return
 		}
 
-		// Respond with an error message for other errors
-		response.RespondErr(ctx, w, http.StatusInternalServerError, "Failed to add friend")
-		return
-	}
+		// Validate input
+		if len(req.Friends) != 2 {
+			response.RespondErr(ctx, w, http.StatusBadRequest, response.ErrMsgInvalidRequest)
+			return
+		}
 
-	// Respond with success if the friend connection is added successfully
-	response.RespondSuccess(ctx, w, nil)
+		// Call the friend service to create the friend connection
+		err := friendService.CreateFriend(ctx, req.Friends[0], req.Friends[1])
+		if err != nil {
+			response.RespondErr(ctx, w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// Respond with success
+		response.RespondSuccess(ctx, w, map[string]bool{"success": true})
+	}
 }

@@ -8,6 +8,17 @@ import (
 	"github.com/go-chi/httplog"
 )
 
+// Error messages
+const (
+	ErrMsgDecodeRequest  = "failed to decode JSON data from request body"
+	ErrMsgInvalidRequest = "Exactly two email addresses are required to create a friend connection"
+	ErrMsgCreateFriend   = "failed to create friend connection"
+	ErrMsgGetUserByEmail = "failed to get user by email"
+	ErrMsgUserNotFound   = "user not found"
+	ErrMsgCheckFriend    = "failed to check if users are already friends"
+	ErrMsgAlreadyFriends = "They are already friends"
+)
+
 // RespondSuccess responds basic success response
 func RespondSuccess(ctx context.Context, w http.ResponseWriter, data interface{}) error {
 	log := httplog.LogEntry(ctx)
