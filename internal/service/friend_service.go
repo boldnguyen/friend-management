@@ -14,7 +14,7 @@ func (serv friendService) CreateFriend(ctx context.Context, email1, email2 strin
 	user1, err := serv.repo.GetUserByEmail(ctx, email1)
 	if err != nil {
 		log.Printf("Failed to get user for email %s: %v", email1, err)
-		return errors.Wrap(errors.New(response.ErrMsgGetUserByEmail), err.Error())
+		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
 	}
 	if user1 == nil {
 		return errors.New(response.ErrMsgUserNotFound)
@@ -24,7 +24,7 @@ func (serv friendService) CreateFriend(ctx context.Context, email1, email2 strin
 	user2, err := serv.repo.GetUserByEmail(ctx, email2)
 	if err != nil {
 		log.Printf("Failed to get user for email %s: %v", email2, err)
-		return errors.Wrap(errors.New(response.ErrMsgGetUserByEmail), err.Error())
+		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
 	}
 	if user2 == nil {
 		return errors.New(response.ErrMsgUserNotFound)
@@ -34,7 +34,7 @@ func (serv friendService) CreateFriend(ctx context.Context, email1, email2 strin
 	// Check if the users are already friends
 	alreadyFriends, err := serv.repo.CheckFriends(ctx, userID1, userID2)
 	if err != nil {
-		return errors.Wrap(errors.New(response.ErrMsgCheckFriend), err.Error())
+		return errors.Wrap(err, response.ErrMsgCheckFriend)
 	}
 
 	if alreadyFriends {
@@ -45,7 +45,7 @@ func (serv friendService) CreateFriend(ctx context.Context, email1, email2 strin
 	err = serv.repo.AddFriend(ctx, userID1, userID2)
 	if err != nil {
 		log.Printf("Failed to create friend connection: %v", err)
-		return errors.Wrap(errors.New(response.ErrMsgCreateFriend), err.Error())
+		return errors.Wrap(err, response.ErrMsgCreateFriend)
 	}
 
 	return nil
