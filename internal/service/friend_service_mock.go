@@ -1,0 +1,18 @@
+package service
+
+import (
+	"context"
+
+	"github.com/stretchr/testify/mock"
+)
+
+// MockFriendService is a mock implementation of FriendService interface.
+type MockFriendService struct {
+	mock.Mock
+}
+
+// CreateFriend mocks the CreateFriend method of the FriendService interface.
+func (m *MockFriendService) CreateFriend(ctx context.Context, email1, email2 string) error {
+	args := m.Called(ctx, email1, email2)
+	return args.Error(0)
+}
