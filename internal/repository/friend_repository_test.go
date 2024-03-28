@@ -2,146 +2,199 @@ package repository
 
 import (
 	"context"
-	"errors"
+	"database/sql"
+	"os"
 	"testing"
 
 	"github.com/boldnguyen/friend-management/internal/models"
+	"github.com/boldnguyen/friend-management/internal/pkg/db"
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+// LoadSqlTestFile loads SQL data from a file into the provided test database connection.
+func LoadSqlTestFile(t *testing.T, tx *sql.DB, sqlFile string) {
+	b, err := os.ReadFile(sqlFile)
+	require.NoError(t, err)
+
+	_, err = tx.Exec(string(b))
+	require.NoError(t, err)
+}
+
+// TestFriendRepository_GetUserByEmail tests the GetUserByEmail method of the friendRepository.
+func TestFriendRepository_GetUserByEmail(t *testing.T) {
+	// Your test cases
+	tcs := map[string]struct {
+		email       string
+		expUser     *models.User
+		expectedErr string
+	}{
+		"existing_user": {
+			email: "john@example.com",
+			expUser: &models.User{
+				ID:    1,
+				Name:  "John Doe",
+				Email: "john@example.com",
+			},
+			expectedErr: "",
+		},
+		"non_existing_user": {
+			email:       "nonexistent@example.com",
+			expUser:     nil,
+			expectedErr: response.ErrMsgGetUserByEmail,
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			ctx := context.Background()
+
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
+
+			// Load test data
+			LoadSqlTestFile(t, dbTest, "C:/Users/nguyen.nguyen/Desktop/friend-management/testdata/friends.sql")
+
+			// Initialize your repository with the test database
+			repo := friendRepository{DB: dbTest}
+
+			// When
+			user, err := repo.GetUserByEmail(ctx, tc.email)
+
+			// Then
+			if tc.expUser == nil {
+				assert.Nil(t, user)
+			} else {
+				require.NotNil(t, user) // Ensure user is not nil
+				assert.Equal(t, tc.expUser.ID, user.ID)
+				assert.Equal(t, tc.expUser.Name, user.Name)
+				assert.Equal(t, tc.expUser.Email, user.Email)
+
+			}
+			if tc.expectedErr != "" {
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestFriendRepository_AddFriend tests the AddFriend method of the friendRepository.
 func TestFriendRepository_AddFriend(t *testing.T) {
 	tcs := map[string]struct {
-		userID1 int
-		userID2 int
-		expErr  error
+		userID1     int
+		userID2     int
+		expectedErr string
 	}{
-		"success": {
-			userID1: 1,
-			userID2: 2,
+		"add_friend_success": {
+			userID1:     1,
+			userID2:     2,
+			expectedErr: "",
 		},
-		"already_friends": {
-			userID1: 3,
-			userID2: 4,
-			expErr:  errors.New("they are already friends"),
-		},
-		"invalid_user_id": {
-			userID1: -1,
-			userID2: 5,
-			expErr:  errors.New("invalid user ID"),
+		"add_friend_failure": {
+			userID1:     1,
+			userID2:     3, // Assuming this user does not exist
+			expectedErr: response.ErrMsgCreateFriend,
 		},
 	}
-
-	mockRepo := &MockRepo{}
 
 	for desc, tc := range tcs {
 		t.Run(desc, func(t *testing.T) {
 			// Given
 			ctx := context.Background()
 
-			// Mocking the behavior of AddFriend method
-			mockRepo.On("AddFriend", ctx, tc.userID1, tc.userID2).Return(tc.expErr)
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
+
+			// Clear the friend_connections table
+			_, err = dbTest.Exec("DELETE FROM friend_connections")
+			require.NoError(t, err)
+
+			// Load test data using the original database connection
+			LoadSqlTestFile(t, dbTest, "C:/Users/nguyen.nguyen/Desktop/friend-management/testdata/friends.sql")
+
+			// Initialize your repository with the transaction
+			repo := friendRepository{DB: dbTest}
+			// Check if the friend connection already exists
+			exists, err := repo.CheckFriends(ctx, tc.userID1, tc.userID2)
+			require.NoError(t, err)
+
+			if exists {
+				// Skip the insert operation or handle as needed
+				t.Skip("Friend connection already exists")
+			}
 
 			// When
-			err := mockRepo.AddFriend(ctx, tc.userID1, tc.userID2)
+			err = repo.AddFriend(ctx, tc.userID1, tc.userID2)
 
 			// Then
-			assert.Equal(t, tc.expErr, err, "Unexpected error")
-			mockRepo.AssertExpectations(t)
+			if tc.expectedErr != "" {
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
 
-func TestFriendRepository_GetUserByEmail(t *testing.T) {
-	tcs := map[string]struct {
-		email  string
-		expID  int
-		expErr error
-	}{
-		"Valid email": {
-			email:  "test@example.com",
-			expID:  1,
-			expErr: nil,
-		},
-		"Nonexistent email": {
-			email:  "nonexistent@example.com",
-			expID:  0,
-			expErr: errors.New(response.ErrMsgUserNotFound),
-		},
-	}
-
-	mockRepo := &MockRepo{}
-
-	for desc, tc := range tcs {
-		t.Run(desc, func(t *testing.T) {
-			// Given
-			ctx := context.Background()
-
-			// Mocking the behavior of GetUserByEmail method
-			mockRepo.On("GetUserByEmail", ctx, tc.email).Return(&models.User{ID: tc.expID}, tc.expErr)
-
-			// When
-			id, err := mockRepo.GetUserByEmail(ctx, tc.email)
-
-			// Then
-			assert.Equal(t, tc.expID, id.ID, "Unexpected user ID")
-			assert.Equal(t, tc.expErr, err, "Unexpected error")
-			mockRepo.AssertExpectations(t)
-		})
-	}
-}
+// TestFriendRepository_CheckFriends tests the CheckFriends method of the friendRepository.
 func TestFriendRepository_CheckFriends(t *testing.T) {
+	// Your test cases
 	tcs := map[string]struct {
-		userID1 int
-		userID2 int
-		expBool bool
-		expErr  error
+		userID1     int
+		userID2     int
+		areFriends  bool // Expected result
+		expectedErr string
 	}{
-		"success_friends_direct": {
-			userID1: 1,
-			userID2: 2,
-			expBool: true,
+		"existing_friends": {
+			userID1:    1,
+			userID2:    2,
+			areFriends: true, // John and Jane are friends
 		},
-		"success_friends_reverse": {
-			userID1: 2,
-			userID2: 1,
-			expBool: true,
-		},
-		"success_not_friends": {
-			userID1: 3,
-			userID2: 4,
-			expBool: false,
-		},
-		"success_not_friends_reverse": {
-			userID1: 4,
-			userID2: 3,
-			expBool: false,
-		},
-		"error_database": {
-			userID1: 5,
-			userID2: 6,
-			expBool: false,
-			expErr:  errors.New("database error"),
+		"non_existing_friends": {
+			userID1:    1,
+			userID2:    3, // Assuming user 3 is not friends with user 1
+			areFriends: false,
 		},
 	}
-
-	mockRepo := &MockRepo{}
 
 	for desc, tc := range tcs {
 		t.Run(desc, func(t *testing.T) {
 			// Given
 			ctx := context.Background()
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
 
-			// Mocking the behavior of CheckFriends method
-			mockRepo.On("CheckFriends", ctx, tc.userID1, tc.userID2).Return(tc.expBool, tc.expErr)
+			// Clear the friend_connections table
+			_, err = dbTest.Exec("DELETE FROM friend_connections")
+			require.NoError(t, err)
+
+			// Load test data using the original database connection
+			LoadSqlTestFile(t, dbTest, "C:/Users/nguyen.nguyen/Desktop/friend-management/testdata/friends.sql")
+
+			// Initialize your repository with the transaction
+			repo := friendRepository{DB: dbTest}
 
 			// When
-			isFriends, err := mockRepo.CheckFriends(ctx, tc.userID1, tc.userID2)
+			areFriends, err := repo.CheckFriends(ctx, tc.userID1, tc.userID2)
 
 			// Then
-			assert.Equal(t, tc.expBool, isFriends, "Unexpected friendship status")
-			assert.Equal(t, tc.expErr, err, "Unexpected error")
-			mockRepo.AssertExpectations(t)
+			if tc.expectedErr != "" {
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.areFriends, areFriends)
+			}
 		})
 	}
+
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestCreateFriend tests the CreateFriend method of the FriendService.
 func TestCreateFriend(t *testing.T) {
 	// mockRepoService is a struct to define the expected behavior of the mock repository.
 	type mockRepoService struct {
