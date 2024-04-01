@@ -17,6 +17,7 @@ const (
 	ErrMsgUserNotFound   = "user not found"
 	ErrMsgCheckFriend    = "failed to check if users are already friends"
 	ErrMsgAlreadyFriends = "They are already friends"
+	ErrMsgGetFriendsList = "Failed to get friends list"
 )
 
 // RespondSuccess responds basic success response

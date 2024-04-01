@@ -44,6 +44,7 @@ func initRouter(friendService service.FriendService) *chi.Mux {
 		w.Write([]byte("OK"))
 	})
 	r.Post("/friend/create", handler.NewHandler(friendService))
+	r.Post("/friend/list", handler.FriendListHandler(friendService))
 
 	return r
 

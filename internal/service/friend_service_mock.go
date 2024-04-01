@@ -16,3 +16,9 @@ func (m *MockFriendService) CreateFriend(ctx context.Context, email1, email2 str
 	args := m.Called(ctx, email1, email2)
 	return args.Error(0)
 }
+
+// GetFriendsList mocks the GetFriendsList method of the FriendService interface.
+func (m *MockFriendService) GetFriendsList(ctx context.Context, email string) ([]string, error) {
+	args := m.Called(ctx, email)
+	return args.Get(0).([]string), args.Error(1)
+}

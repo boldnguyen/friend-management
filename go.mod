@@ -1,8 +1,6 @@
 module github.com/boldnguyen/friend-management
 
-go 1.22
-
-toolchain go1.22.0
+go 1.20
 
 require (
 	github.com/friendsofgo/errors v0.9.2

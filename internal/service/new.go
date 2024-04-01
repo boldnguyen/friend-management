@@ -9,6 +9,7 @@ import (
 // FriendService provides methods for managing friend connections.
 type FriendService interface {
 	CreateFriend(ctx context.Context, email1, email2 string) error
+	GetFriendsList(ctx context.Context, email string) ([]string, error)
 }
 
 // friendService implements the FriendService interface.

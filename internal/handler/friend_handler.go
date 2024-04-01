@@ -39,6 +39,36 @@ func NewHandler(friendService service.FriendService) http.HandlerFunc {
 		}
 
 		// Respond with success
-		response.RespondSuccess(ctx, w, map[string]bool{"success": true})
+		response.RespondSuccess(ctx, w, nil)
+	}
+}
+
+// FriendListHandler creates a new HTTP handler for retrieving the friends list.
+func FriendListHandler(friendService service.FriendService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Email string `json:"email" validate:"required,email"`
+		}
+		ctx := r.Context()
+
+		// Decode the JSON data from the request body
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			response.RespondErr(ctx, w, http.StatusBadRequest, response.ErrMsgDecodeRequest+": "+err.Error())
+			return
+		}
+
+		// Call the friend service to retrieve the friends list
+		friends, err := friendService.GetFriendsList(ctx, req.Email)
+		if err != nil {
+			response.RespondErr(ctx, w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// Respond with success and friends list
+		response.RespondSuccess(ctx, w, map[string]interface{}{
+			"success": true,
+			"friends": friends,
+			"count":   len(friends),
+		})
 	}
 }

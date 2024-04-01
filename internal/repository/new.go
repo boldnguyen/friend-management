@@ -13,6 +13,7 @@ type FriendRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
 	AddFriend(ctx context.Context, userID1, userID2 int) error
 	CheckFriends(ctx context.Context, userID1, userID2 int) (bool, error)
+	GetFriendsList(ctx context.Context, userID int) ([]string, error)
 }
 
 // friendRepository implements the FriendRepository interface.
