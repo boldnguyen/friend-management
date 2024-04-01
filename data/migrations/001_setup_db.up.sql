@@ -13,6 +13,6 @@ CREATE TABLE friend_connections (
     user_id1 INT REFERENCES users(id) NOT NULL,
     user_id2 INT REFERENCES users(id) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (user_id1, user_id2)
 );
