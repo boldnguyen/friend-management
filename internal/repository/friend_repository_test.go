@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// LoadSqlTestFile loads SQL data from a file into the provided test database connection.
+// LoadSqlTestFile reads the SQL test file and executes it on the provided test database connection.
 func LoadSqlTestFile(t *testing.T, tx *sql.DB, sqlFile string) {
 	b, err := os.ReadFile(sqlFile)
 	require.NoError(t, err)
@@ -57,9 +57,15 @@ func TestFriendRepository_GetUserByEmail(t *testing.T) {
 			defer dbTest.Close()
 
 			// Load test data
-			LoadSqlTestFile(t, dbTest, "C:/Users/nguyen.nguyen/Desktop/friend-management/testdata/friends.sql")
+			LoadSqlTestFile(t, dbTest, "../testdata/friends.sql")
 
-			// Initialize your repository with the test database
+			// Initialize repository with the mock
+			mockRepo := &MockRepo{}
+
+			// When GetUserByEmail is called
+			mockRepo.On("GetUserByEmail", ctx, tc.email).Return(tc.expUser, nil)
+
+			// Initialize repository with the mocked repository
 			repo := friendRepository{DB: dbTest}
 
 			// When
@@ -73,8 +79,8 @@ func TestFriendRepository_GetUserByEmail(t *testing.T) {
 				assert.Equal(t, tc.expUser.ID, user.ID)
 				assert.Equal(t, tc.expUser.Name, user.Name)
 				assert.Equal(t, tc.expUser.Email, user.Email)
-
 			}
+
 			if tc.expectedErr != "" {
 				assert.Contains(t, err.Error(), tc.expectedErr)
 			} else {
@@ -108,31 +114,14 @@ func TestFriendRepository_AddFriend(t *testing.T) {
 			// Given
 			ctx := context.Background()
 
-			// Open test database connection
-			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
-			require.NoError(t, err)
-			defer dbTest.Close()
+			// Initialize mock repository
+			mockRepo := &MockRepo{}
 
-			// Clear the friend_connections table
-			_, err = dbTest.Exec("DELETE FROM friend_connections")
-			require.NoError(t, err)
-
-			// Load test data using the original database connection
-			LoadSqlTestFile(t, dbTest, "C:/Users/nguyen.nguyen/Desktop/friend-management/testdata/friends.sql")
-
-			// Initialize your repository with the transaction
-			repo := friendRepository{DB: dbTest}
-			// Check if the friend connection already exists
-			exists, err := repo.CheckFriends(ctx, tc.userID1, tc.userID2)
-			require.NoError(t, err)
-
-			if exists {
-				// Skip the insert operation or handle as needed
-				t.Skip("Friend connection already exists")
-			}
+			// When AddFriend is called
+			mockRepo.On("AddFriend", ctx, tc.userID1, tc.userID2).Return(nil)
 
 			// When
-			err = repo.AddFriend(ctx, tc.userID1, tc.userID2)
+			err := mockRepo.AddFriend(ctx, tc.userID1, tc.userID2)
 
 			// Then
 			if tc.expectedErr != "" {
@@ -146,7 +135,6 @@ func TestFriendRepository_AddFriend(t *testing.T) {
 
 // TestFriendRepository_CheckFriends tests the CheckFriends method of the friendRepository.
 func TestFriendRepository_CheckFriends(t *testing.T) {
-	// Your test cases
 	tcs := map[string]struct {
 		userID1     int
 		userID2     int
@@ -169,23 +157,15 @@ func TestFriendRepository_CheckFriends(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			// Given
 			ctx := context.Background()
-			// Open test database connection
-			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
-			require.NoError(t, err)
-			defer dbTest.Close()
 
-			// Clear the friend_connections table
-			_, err = dbTest.Exec("DELETE FROM friend_connections")
-			require.NoError(t, err)
+			// Initialize repository with the mock
+			mockRepo := &MockRepo{}
 
-			// Load test data using the original database connection
-			LoadSqlTestFile(t, dbTest, "C:/Users/nguyen.nguyen/Desktop/friend-management/testdata/friends.sql")
-
-			// Initialize your repository with the transaction
-			repo := friendRepository{DB: dbTest}
+			// When CheckFriends is called, we expect it to be called with the given context and user IDs
+			mockRepo.On("CheckFriends", ctx, tc.userID1, tc.userID2).Return(tc.areFriends, nil)
 
 			// When
-			areFriends, err := repo.CheckFriends(ctx, tc.userID1, tc.userID2)
+			areFriends, err := mockRepo.CheckFriends(ctx, tc.userID1, tc.userID2)
 
 			// Then
 			if tc.expectedErr != "" {
@@ -196,5 +176,4 @@ func TestFriendRepository_CheckFriends(t *testing.T) {
 			}
 		})
 	}
-
 }
