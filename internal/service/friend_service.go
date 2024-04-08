@@ -50,3 +50,26 @@ func (serv friendService) CreateFriend(ctx context.Context, email1, email2 strin
 
 	return nil
 }
+
+// GetFriendsList retrieves the list of friends for a given email address.
+func (serv friendService) GetFriendsList(ctx context.Context, email string) ([]string, error) {
+	// Get user ID from email
+	user, err := serv.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		log.Printf("Failed to get user for email %s: %v", email, err)
+		return nil, errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+	if user == nil {
+		return nil, errors.New(response.ErrMsgUserNotFound)
+	}
+	userID := user.ID
+
+	// Get friends list
+	friends, err := serv.repo.GetFriendsList(ctx, userID)
+	if err != nil {
+		log.Printf("Failed to get friends list for user ID %d: %v", userID, err)
+		return nil, errors.Wrap(err, response.ErrMsgGetFriendsList)
+	}
+
+	return friends, nil
+}

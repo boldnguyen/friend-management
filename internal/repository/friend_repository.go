@@ -55,3 +55,32 @@ func (repo friendRepository) CheckFriends(ctx context.Context, userID1, userID2 
 
 	return exists, nil
 }
+
+// GetFriendsList retrieves the list of friends for a given user ID.
+func (repo friendRepository) GetFriendsList(ctx context.Context, userID int) ([]string, error) {
+	friendConnections, err := models.FriendConnections(
+		qm.Select("user_id1", "user_id2"),
+		qm.Where("user_id1 = ? OR user_id2 = ?", userID, userID),
+	).All(ctx, repo.DB)
+	if err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgGetFriendsList)
+	}
+
+	var friends []string
+	for _, fc := range friendConnections {
+		var friendID int
+		if fc.UserID1 == userID {
+			friendID = fc.UserID2
+		} else {
+			friendID = fc.UserID1
+		}
+
+		user, err := models.Users(qm.Where("id = ?", friendID)).One(ctx, repo.DB)
+		if err != nil {
+			return nil, errors.Wrap(err, response.ErrMsgGetFriendsList)
+		}
+		friends = append(friends, user.Email)
+	}
+
+	return friends, nil
+}

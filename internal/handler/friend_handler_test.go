@@ -83,3 +83,73 @@ func TestNewHandler_CreateFriend(t *testing.T) {
 		})
 	}
 }
+
+// TestFriendListHandler_GetFriendsList tests the FriendListHandler function for retrieving the friends list.
+func TestFriendListHandler_GetFriendsList(t *testing.T) {
+	type mockService struct {
+		expCall bool     // Whether the service method is expected to be called
+		input   string   // Input data expected to be passed to the service method
+		output  []string // Output data to be returned by the service method
+		err     error    // Error expected to be returned by the service method
+	}
+
+	// Define test cases for different scenarios
+	tcs := map[string]struct {
+		input    string      // Input email data
+		mockFn   mockService // Function to set up mock
+		expCode  int         // expected HTTP response code
+		expError string      // expected error message
+	}{
+		"success": {
+			input:   "test@example.com",
+			mockFn:  mockService{expCall: true, input: "test@example.com", output: []string{"friend1@example.com", "friend2@example.com"}, err: nil},
+			expCode: http.StatusOK,
+		},
+		"no_friends": {
+			input:    "test@example.com",
+			mockFn:   mockService{expCall: true, input: "test@example.com", output: []string{}, err: nil},
+			expCode:  http.StatusOK,
+			expError: "",
+		},
+		"error": {
+			input:    "test@example.com",
+			mockFn:   mockService{expCall: true, input: "test@example.com", output: nil, err: errors.New("failed to get friends list")},
+			expCode:  http.StatusInternalServerError,
+			expError: response.ErrMsgGetFriendsList,
+		},
+	}
+
+	// Iterate over each test case
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			mockFriendService := new(service.MockFriendService)
+			if tc.mockFn.expCall {
+				mockFriendService.On("GetFriendsList", mock.Anything, tc.mockFn.input).Return(tc.mockFn.output, tc.mockFn.err)
+			}
+			friendListHandler := FriendListHandler(mockFriendService)
+
+			// Marshal input data to JSON
+			body, _ := json.Marshal(map[string]string{"email": tc.input})
+			// Create HTTP request with the JSON payload
+			req, err := http.NewRequest("POST", "/friend/list", bytes.NewBuffer(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+
+			// When
+			// Call the handler function to handle the HTTP request
+			friendListHandler.ServeHTTP(rr, req)
+
+			// Then
+			// Assert the HTTP response code
+			require.Equal(t, tc.expCode, rr.Code)
+			// If an error message is expected, assert its presence in the response body
+			if tc.expError != "" {
+				require.True(t, strings.Contains(rr.Body.String(), tc.expError))
+			}
+			// Assert that the expected calls to the mock service were made
+			mockFriendService.AssertExpectations(t)
+		})
+	}
+}
