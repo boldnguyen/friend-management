@@ -13,6 +13,11 @@ type CreateFriendConnectionRequest struct {
 	Friends []string `json:"friends" validate:"required,min=2,max=2,dive,email"`
 }
 
+// CommonFriendsRequest defines the structure of the request for retrieving common friends.
+type CommonFriendsRequest struct {
+	Friends []string `json:"friends" validate:"required,min=2,max=2,dive,email"`
+}
+
 // NewHandler creates a new HTTP handler for creating a friend connection.
 func NewHandler(friendService service.FriendService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +74,39 @@ func FriendListHandler(friendService service.FriendService) http.HandlerFunc {
 			"success": true,
 			"friends": friends,
 			"count":   len(friends),
+		})
+	}
+}
+
+// CommonFriendsHandler creates a new HTTP handler for retrieving common friends list.
+func CommonFriendsHandler(friendService service.FriendService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req CommonFriendsRequest
+		ctx := r.Context()
+
+		// Decode the JSON data from request body
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			response.RespondErr(ctx, w, http.StatusBadRequest, response.ErrMsgDecodeRequest)
+			return
+		}
+		// Validate input
+		if len(req.Friends) != 2 {
+			response.RespondErr(ctx, w, http.StatusBadRequest, response.ErrMsgInvalidRequest)
+			return
+		}
+
+		// Call the friend service to retrieve common friends list
+		commonFriends, err := friendService.GetCommonFriends(ctx, req.Friends[0], req.Friends[1])
+		if err != nil {
+			response.RespondErr(ctx, w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// Respond with success and common friends list
+		response.RespondSuccess(ctx, w, map[string]interface{}{
+			"success": true,
+			"friends": commonFriends,
+			"count":   len(commonFriends),
 		})
 	}
 }

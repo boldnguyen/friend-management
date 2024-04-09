@@ -22,3 +22,8 @@ func (m *MockFriendService) GetFriendsList(ctx context.Context, email string) ([
 	args := m.Called(ctx, email)
 	return args.Get(0).([]string), args.Error(1)
 }
+
+// GetCommonFriends is a mock implementation of retrieving common friends.
+func (s *MockFriendService) GetCommonFriends(ctx context.Context, email1, email2 string) ([]string, error) {
+	return []string{}, nil
+}

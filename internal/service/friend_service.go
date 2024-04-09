@@ -73,3 +73,36 @@ func (serv friendService) GetFriendsList(ctx context.Context, email string) ([]s
 
 	return friends, nil
 }
+
+// GetCommonFriends retrieves the list of common friends between two email addresses.
+func (serv friendService) GetCommonFriends(ctx context.Context, email1, email2 string) ([]string, error) {
+	// Get user IDs from emails
+	user1, err := serv.repo.GetUserByEmail(ctx, email1)
+	if err != nil {
+		log.Printf("Failed to get user for email %s: %v", email1, err)
+		return nil, errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+	if user1 == nil {
+		return nil, errors.New(response.ErrMsgUserNotFound)
+	}
+	userID1 := user1.ID
+
+	user2, err := serv.repo.GetUserByEmail(ctx, email2)
+	if err != nil {
+		log.Printf("Failed to get user for email %s: %v", email2, err)
+		return nil, errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+	if user2 == nil {
+		return nil, errors.New(response.ErrMsgUserNotFound)
+	}
+	userID2 := user2.ID
+
+	// Get common friends list
+	commonFriends, err := serv.repo.GetCommonFriends(ctx, userID1, userID2)
+	if err != nil {
+		log.Printf("Failed to get common friends list: %v", err)
+		return nil, errors.Wrap(err, response.ErrMsgGetCommonFriends)
+	}
+
+	return commonFriends, nil
+}

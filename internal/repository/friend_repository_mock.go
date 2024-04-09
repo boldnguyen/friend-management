@@ -35,3 +35,8 @@ func (m *MockRepo) GetFriendsList(ctx context.Context, userID int) ([]string, er
 	args := m.Called(ctx, userID)
 	return args.Get(0).([]string), args.Error(1)
 }
+
+// GetCommonFriends is a mock implementation of retrieving common friends.
+func (r *MockRepo) GetCommonFriends(ctx context.Context, userID1, userID2 int) ([]string, error) {
+	return []string{}, nil
+}
