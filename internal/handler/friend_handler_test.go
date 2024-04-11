@@ -153,3 +153,73 @@ func TestFriendListHandler_GetFriendsList(t *testing.T) {
 		})
 	}
 }
+
+// TestCommonFriendsHandler_GetCommonFriends tests the CommonFriendsHandler function for retrieving common friends list.
+func TestCommonFriendsHandler_GetCommonFriends(t *testing.T) {
+	type mockService struct {
+		expCall bool     // Whether the service method is expected to be called
+		input   []string // Input data expected to be passed to the service method
+		output  []string // Output data to be returned by the service method
+		err     error    // Error expected to be returned by the service method
+	}
+
+	// Define test cases for different scenarios
+	tcs := map[string]struct {
+		input    []string    // Input friend data
+		mockFn   mockService // Function to set up mock
+		expCode  int         // expected HTTP response code
+		expError string      // expected error message
+	}{
+		"success": {
+			input:   []string{"test1@example.com", "test2@example.com"},
+			mockFn:  mockService{expCall: true, input: []string{"test1@example.com", "test2@example.com"}, output: []string{"common@example.com"}, err: nil},
+			expCode: http.StatusOK,
+		},
+		"no_common_friends": {
+			input:    []string{"test1@example.com", "test2@example.com"},
+			mockFn:   mockService{expCall: true, input: []string{"test1@example.com", "test2@example.com"}, output: []string{}, err: nil},
+			expCode:  http.StatusOK,
+			expError: "",
+		},
+		"error": {
+			input:    []string{"test1@example.com", "test2@example.com"},
+			mockFn:   mockService{expCall: true, input: []string{"test1@example.com", "test2@example.com"}, output: nil, err: errors.New("failed to retrieve common friends list")},
+			expCode:  http.StatusInternalServerError,
+			expError: response.ErrMsgGetCommonFriends,
+		},
+	}
+
+	// Iterate over each test case
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			mockFriendService := new(service.MockFriendService)
+			if tc.mockFn.expCall {
+				mockFriendService.On("GetCommonFriends", mock.Anything, tc.mockFn.input[0], tc.mockFn.input[1]).Return(tc.mockFn.output, tc.mockFn.err)
+			}
+			commonFriendsHandler := CommonFriendsHandler(mockFriendService)
+
+			// Marshal input data to JSON
+			body, _ := json.Marshal(map[string][]string{"friends": tc.input})
+			// Create HTTP request with the JSON payload
+			req, err := http.NewRequest("POST", "/friend/common", bytes.NewBuffer(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+
+			// When
+			// Call the handler function to handle the HTTP request
+			commonFriendsHandler.ServeHTTP(rr, req)
+
+			// Then
+			// Assert the HTTP response code
+			require.Equal(t, tc.expCode, rr.Code)
+			// If an error message is expected, assert its presence in the response body
+			if tc.expError != "" {
+				require.True(t, strings.Contains(rr.Body.String(), tc.expError))
+			}
+			// Assert that the expected calls to the mock service were made
+			mockFriendService.AssertExpectations(t)
+		})
+	}
+}

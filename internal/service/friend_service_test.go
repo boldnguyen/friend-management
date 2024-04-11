@@ -178,3 +178,74 @@ func TestGetFriendsList(t *testing.T) {
 	}
 
 }
+func TestGetCommonFriends(t *testing.T) {
+	type mockRepoService struct {
+		expGetUserByEmail map[string]*models.User
+		expCommonFriends  []string
+		expErr            error
+	}
+
+	tcs := map[string]struct {
+		email1   string
+		email2   string
+		mockFn   mockRepoService
+		expError string
+		expList  []string
+	}{
+		"success": {
+			email1: "test1@example.com",
+			email2: "test2@example.com",
+			mockFn: mockRepoService{
+				expGetUserByEmail: map[string]*models.User{
+					"test1@example.com": {ID: 1},
+					"test2@example.com": {ID: 2},
+				},
+				expCommonFriends: []string{"commonfriend@example.com"},
+				expErr:           nil,
+			},
+			expError: "",
+			expList:  []string{"commonfriend@example.com"},
+		},
+		"user_not_found": {
+			email1: "test1@example.com",
+			email2: "test2@example.com",
+			mockFn: mockRepoService{
+				expGetUserByEmail: map[string]*models.User{
+					"test1@example.com": {ID: 1},
+					"test2@example.com": {ID: 2},
+				},
+				expCommonFriends: nil,
+				expErr:           errors.New("user not found"),
+			},
+			expError: response.ErrMsgUserNotFound,
+			expList:  nil,
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			mockRepo := new(repository.MockRepo)
+			friendService := NewFriendService(mockRepo)
+
+			mockRepo.On("GetUserByEmail", mock.Anything, tc.email1).Return(tc.mockFn.expGetUserByEmail[tc.email1], nil).Once()
+			mockRepo.On("GetUserByEmail", mock.Anything, tc.email2).Return(tc.mockFn.expGetUserByEmail[tc.email2], nil).Once()
+
+			if tc.mockFn.expGetUserByEmail[tc.email1] != nil && tc.mockFn.expGetUserByEmail[tc.email2] != nil {
+				mockRepo.On("GetCommonFriends", mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int")).Return(tc.mockFn.expCommonFriends, tc.mockFn.expErr).Once()
+			}
+
+			list, err := friendService.GetCommonFriends(context.Background(), tc.email1, tc.email2)
+
+			if tc.expError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expError)
+				require.Nil(t, list)
+			} else {
+				require.NoError(t, err)
+				require.ElementsMatch(t, tc.expList, list)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}

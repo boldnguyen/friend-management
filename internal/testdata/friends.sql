@@ -1,12 +1,13 @@
--- testdata/friends.sql
-DELETE FROM friend_connections;
-DELETE FROM users;
+-- friends.sql
+INSERT INTO users (id, name, email) VALUES
+(1, 'John Doe', 'john@example.com'),
+(2, 'Jane Smith', 'jane@example.com'),
+(3, 'Alice Johnson', 'alice@example.com'),
+(4, 'Bob Brown', 'bob@example.com') -- Add Bob as a new user
 
--- Sample users
-INSERT INTO users (id, name, email) VALUES (1, 'John Doe', 'john@example.com');
-INSERT INTO users (id, name, email) VALUES (2, 'Jane Doe', 'jane@example.com');
-INSERT INTO users (id, name, email) VALUES (3, 'Alice Smith', 'alice@example.com');
-INSERT INTO users (id, name, email) VALUES (4, 'Bob Johnson', 'bob@example.com');
+ON CONFLICT DO NOTHING; -- Skip inserting if the user already exists
 
--- Sample friend connections
-INSERT INTO friend_connections (user_id1, user_id2) VALUES (1, 2); -- John and Jane are friends
+INSERT INTO friend_connections (user_id1, user_id2) VALUES
+(1, 2),
+(4, 2) 
+ON CONFLICT DO NOTHING; -- Skip inserting if the friend connection already exists

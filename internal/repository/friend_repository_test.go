@@ -188,7 +188,7 @@ func TestFriendRepository_GetFriendsList(t *testing.T) {
 	}{
 		"existing_user_with_friends": {
 			userID:      1,
-			expFriends:  []string{"jane@example.com"}, // Expect John to be friends with Jane
+			expFriends:  []string{"jane@example.com", "bob@example.com"}, // Expect John to be friends with Jane
 			expectedErr: "",
 		},
 		"existing_user_without_friends": {
@@ -229,6 +229,65 @@ func TestFriendRepository_GetFriendsList(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.ElementsMatch(t, tc.expFriends, friends)
+			}
+		})
+	}
+}
+
+// TestFriendRepository_GetCommonFriends tests the GetCommonFriends method of the friendRepository.
+func TestFriendRepository_GetCommonFriends(t *testing.T) {
+	// Your test cases
+	tcs := map[string]struct {
+		userID1     int
+		userID2     int
+		expCommon   []string
+		expectedErr string
+	}{
+		"existing_common_friends": {
+			userID1:     1,
+			userID2:     4,
+			expCommon:   []string{"jane@example.com"}, // Expect John and Bob to have a common friend
+			expectedErr: "",
+		},
+		"no_common_friends": {
+			userID1:     1,
+			userID2:     3,
+			expCommon:   []string{}, // Expect John and Alice to have no common friends
+			expectedErr: "",
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			ctx := context.Background()
+
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
+
+			// Load test data
+			LoadSqlTestFile(t, dbTest, "../testdata/friends.sql")
+
+			// Initialize mock repository
+			mockRepo := &MockRepo{}
+
+			// Mock the GetCommonFriends method
+			mockRepo.On("GetCommonFriends", ctx, tc.userID1, tc.userID2).Return(tc.expCommon, nil)
+
+			// Initialize repository with the mocked repository
+			repo := friendRepository{DB: dbTest}
+
+			// When GetCommonFriends is called
+			common, err := repo.GetCommonFriends(ctx, tc.userID1, tc.userID2)
+
+			// Then
+			if tc.expectedErr != "" {
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+				assert.ElementsMatch(t, tc.expCommon, common)
 			}
 		})
 	}
