@@ -84,3 +84,35 @@ func (repo friendRepository) GetFriendsList(ctx context.Context, userID int) ([]
 
 	return friends, nil
 }
+
+// GetCommonFriends retrieves the list of common friends between two user IDs.
+func (repo friendRepository) GetCommonFriends(ctx context.Context, userID1, userID2 int) ([]string, error) {
+	// Get friends list for both users
+	friends, err := models.FriendConnections(
+		qm.Select("user_id2"),
+		qm.Where("user_id1 IN (?, ?)", userID1, userID2), // Select friends of both users
+	).All(ctx, repo.DB)
+	if err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgGetCommonFriends)
+	}
+
+	// Find common friends
+	commonFriends := make(map[int]int) // Using map for efficient lookup
+	var common []string
+	for _, friend := range friends {
+		commonFriends[friend.UserID2]++ // Count occurrences of each friend
+	}
+
+	// Retrieve users corresponding to common friends
+	for friendID, count := range commonFriends {
+		if count == 2 { // If a friend is found for both users
+			user, err := models.Users(qm.Where("id = ?", friendID)).One(ctx, repo.DB)
+			if err != nil {
+				return nil, errors.Wrap(err, response.ErrMsgGetCommonFriends)
+			}
+			common = append(common, user.Email)
+		}
+	}
+
+	return common, nil
+}
