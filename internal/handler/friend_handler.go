@@ -6,7 +6,10 @@ import (
 
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
 	"github.com/boldnguyen/friend-management/internal/service"
+	"github.com/go-playground/validator/v10"
 )
+
+var validate = validator.New()
 
 // CreateFriendConnectionRequest defines the structure of the request for creating a friend connection.
 type CreateFriendConnectionRequest struct {
@@ -16,6 +19,12 @@ type CreateFriendConnectionRequest struct {
 // CommonFriendsRequest defines the structure of the request for retrieving common friends.
 type CommonFriendsRequest struct {
 	Friends []string `json:"friends" validate:"required,min=2,max=2,dive,email"`
+}
+
+// SubscribeRequest defines the structure of the request for subscribing to updates.
+type SubscribeRequest struct {
+	Requestor string `json:"requestor" validate:"required,email"`
+	Target    string `json:"target" validate:"required,email"`
 }
 
 // NewHandler creates a new HTTP handler for creating a friend connection.
@@ -108,5 +117,34 @@ func CommonFriendsHandler(friendService service.FriendService) http.HandlerFunc 
 			"friends": commonFriends,
 			"count":   len(commonFriends),
 		})
+	}
+}
+
+// SubscribeHandler creates a new HTTP handler for subscribing to updates.
+func SubscribeHandler(friendService service.FriendService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req SubscribeRequest
+		ctx := r.Context()
+
+		// Decode the JSON data from the request body
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			response.RespondErr(ctx, w, http.StatusBadRequest, response.ErrMsgDecodeRequest)
+			return
+		}
+
+		// Validate the request
+		if err := validate.Struct(req); err != nil {
+			response.RespondErr(ctx, w, http.StatusBadRequest, response.ErrMsgInvalidRequest)
+		}
+
+		// Call the friend service to subscribe to updates
+		err := friendService.SubscribeUpdates(ctx, req.Requestor, req.Target)
+		if err != nil {
+			response.RespondErr(ctx, w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// Respond with success
+		response.RespondSuccess(ctx, w, nil)
 	}
 }

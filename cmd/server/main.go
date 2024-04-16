@@ -46,6 +46,7 @@ func initRouter(friendService service.FriendService) *chi.Mux {
 	r.Post("/friend/create", handler.NewHandler(friendService))
 	r.Post("/friend/list", handler.FriendListHandler(friendService))
 	r.Post("/friend/common", handler.CommonFriendsHandler(friendService))
+	r.Post("/friend/subscribe", handler.SubscribeHandler(friendService)) // Updated to /friend/subscribe
 
 	return r
 

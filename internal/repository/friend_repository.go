@@ -116,3 +116,27 @@ func (repo friendRepository) GetCommonFriends(ctx context.Context, userID1, user
 
 	return common, nil
 }
+
+// CheckSubscription checks if a subscription already exists between requestor and target.
+func (repo *friendRepository) CheckSubscription(ctx context.Context, requestor, target string) (bool, error) {
+	exists, err := models.Subscriptions(
+		qm.Where("requestor = ? AND target = ?", requestor, target),
+	).Exists(ctx, repo.DB)
+	if err != nil {
+		return false, errors.Wrap(err, response.ErrMsgCheckSubscription)
+	}
+	return exists, nil
+}
+
+// SubscribeUpdates subscribes the requestor to updates from the target.
+func (repo *friendRepository) SubscribeUpdates(ctx context.Context, requestor, target string) error {
+	subscription := models.Subscription{
+		Requestor: requestor,
+		Target:    target,
+	}
+	err := subscription.Insert(ctx, repo.DB, boil.Infer())
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgSubscribeUpdates)
+	}
+	return nil
+}
