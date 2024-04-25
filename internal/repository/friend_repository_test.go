@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"testing"
 
@@ -288,6 +289,124 @@ func TestFriendRepository_GetCommonFriends(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.ElementsMatch(t, tc.expCommon, common)
+			}
+		})
+	}
+}
+
+// TestFriendRepository_CheckSubscription tests the CheckSubscription method of the friendRepository.
+func TestFriendRepository_CheckSubscription(t *testing.T) {
+	// Your test cases
+	tcs := map[string]struct {
+		requestor    string
+		target       string
+		subscription bool // Expected result
+		expectedErr  string
+	}{
+		"existing_subscription": {
+			requestor:    "user1@example.com",
+			target:       "user2@example.com",
+			subscription: true, // Expect a subscription to exist between user1 and user2
+		},
+		"non_existing_subscription": {
+			requestor:    "user1@example.com",
+			target:       "user3@example.com", // Assuming user3 is not subscribed by user1
+			subscription: false,
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			ctx := context.Background()
+
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
+
+			// Load test data
+			LoadSqlTestFile(t, dbTest, "../testdata/subscriptions.sql")
+
+			// Initialize mock repository
+			mockRepo := &MockRepo{}
+
+			// When CheckSubscription is called, we expect it to be called with the given context, requestor, and target
+			mockRepo.On("CheckSubscription", ctx, tc.requestor, tc.target).Return(tc.subscription, nil)
+
+			// Initialize repository with the mock
+			repo := friendRepository{DB: dbTest}
+
+			// When
+			subscription, err := repo.CheckSubscription(ctx, tc.requestor, tc.target)
+
+			// Then
+			if tc.expectedErr != "" {
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.subscription, subscription)
+			}
+		})
+	}
+}
+
+// TestFriendRepository_SubscribeUpdates tests the SubscribeUpdates method of the friendRepository.
+func TestFriendRepository_SubscribeUpdates(t *testing.T) {
+	// Your test cases
+	tcs := map[string]struct {
+		requestor   string
+		target      string
+		expectedErr string
+	}{
+		"subscribe_success": {
+			requestor:   "user1@example.com",
+			target:      "user2@example.com",
+			expectedErr: "", // Expect no error when subscribing
+		},
+		"subscribe_failure": {
+			requestor:   "user1@example.com",
+			target:      "user2@example.com", // Assuming that this subscription already exists
+			expectedErr: response.ErrMsgSubscribeUpdates,
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			ctx := context.Background()
+
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
+
+			// Load test data
+			LoadSqlTestFile(t, dbTest, "../testdata/subscriptions.sql")
+
+			// Initialize mock repository
+			mockRepo := &MockRepo{}
+
+			// Mock SubscribeUpdates method behavior
+			if tc.expectedErr == "" {
+				// Expect SubscribeUpdates to succeed
+				mockRepo.On("SubscribeUpdates", ctx, tc.requestor, tc.target).Return(nil)
+			} else {
+				// Expect SubscribeUpdates to fail
+				mockRepo.On("SubscribeUpdates", ctx, tc.requestor, tc.target).Return(errors.New(tc.expectedErr))
+			}
+
+			// Initialize repository with the mock
+			repo := friendRepository{DB: dbTest}
+
+			// When
+			err = repo.SubscribeUpdates(ctx, tc.requestor, tc.target)
+
+			// Then
+			if tc.expectedErr != "" {
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
