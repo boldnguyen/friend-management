@@ -3,19 +3,28 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"os"
 	"testing"
 
 	"github.com/boldnguyen/friend-management/internal/models"
 	"github.com/boldnguyen/friend-management/internal/pkg/db"
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // LoadSqlTestFile reads the SQL test file and executes it on the provided test database connection.
 func LoadSqlTestFile(t *testing.T, tx *sql.DB, sqlFile string) {
+	b, err := os.ReadFile(sqlFile)
+	require.NoError(t, err)
+
+	_, err = tx.Exec(string(b))
+	require.NoError(t, err)
+}
+
+// LoadSqlTestFileWithTx reads the SQL test file and executes it on the provided transaction.
+func LoadSqlTestFileWithTx(t *testing.T, tx *sql.Tx, sqlFile string) {
 	b, err := os.ReadFile(sqlFile)
 	require.NoError(t, err)
 
@@ -300,18 +309,20 @@ func TestFriendRepository_CheckSubscription(t *testing.T) {
 	tcs := map[string]struct {
 		requestor    string
 		target       string
-		subscription bool // Expected result
-		expectedErr  string
+		subscription bool  // Expected result
+		expectedErr  error // Expected error
 	}{
 		"existing_subscription": {
 			requestor:    "user1@example.com",
 			target:       "user2@example.com",
 			subscription: true, // Expect a subscription to exist between user1 and user2
+			expectedErr:  nil,
 		},
 		"non_existing_subscription": {
 			requestor:    "user1@example.com",
 			target:       "user3@example.com", // Assuming user3 is not subscribed by user1
 			subscription: false,
+			expectedErr:  nil,
 		},
 	}
 
@@ -325,28 +336,32 @@ func TestFriendRepository_CheckSubscription(t *testing.T) {
 			require.NoError(t, err)
 			defer dbTest.Close()
 
-			// Load test data
-			LoadSqlTestFile(t, dbTest, "../testdata/subscriptions.sql")
+			// Start a transaction
+			tx, err := dbTest.Begin()
+			require.NoError(t, err)
+
+			// Load test data using the transaction
+			LoadSqlTestFileWithTx(t, tx, "../testdata/subscriptions.sql")
 
 			// Initialize mock repository
 			mockRepo := &MockRepo{}
 
 			// When CheckSubscription is called, we expect it to be called with the given context, requestor, and target
-			mockRepo.On("CheckSubscription", ctx, tc.requestor, tc.target).Return(tc.subscription, nil)
+			mockRepo.On("CheckSubscription", ctx, tc.requestor, tc.target).Return(tc.subscription, tc.expectedErr)
 
-			// Initialize repository with the mock
-			repo := friendRepository{DB: dbTest}
+			// Initialize repository with the mock and transaction
+			repo := friendRepository{DB: tx}
 
 			// When
 			subscription, err := repo.CheckSubscription(ctx, tc.requestor, tc.target)
 
 			// Then
-			if tc.expectedErr != "" {
-				assert.Contains(t, err.Error(), tc.expectedErr)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.subscription, subscription)
-			}
+			assert.Equal(t, tc.expectedErr, err) // Check for expected error
+			assert.Equal(t, tc.subscription, subscription)
+
+			// Rollback the transaction
+			err = tx.Rollback()
+			require.NoError(t, err)
 		})
 	}
 }
@@ -357,17 +372,17 @@ func TestFriendRepository_SubscribeUpdates(t *testing.T) {
 	tcs := map[string]struct {
 		requestor   string
 		target      string
-		expectedErr string
+		expectedErr error // Expected error
 	}{
 		"subscribe_success": {
 			requestor:   "user1@example.com",
-			target:      "user2@example.com",
-			expectedErr: "", // Expect no error when subscribing
+			target:      "user3@example.com",
+			expectedErr: nil,
 		},
 		"subscribe_failure": {
 			requestor:   "user1@example.com",
 			target:      "user2@example.com", // Assuming that this subscription already exists
-			expectedErr: response.ErrMsgSubscribeUpdates,
+			expectedErr: errors.New(response.ErrMsgSubscriptionAlreadyExists),
 		},
 	}
 
@@ -381,33 +396,38 @@ func TestFriendRepository_SubscribeUpdates(t *testing.T) {
 			require.NoError(t, err)
 			defer dbTest.Close()
 
+			// Start transaction
+			tx, err := dbTest.Begin()
+			require.NoError(t, err)
+
 			// Load test data
-			LoadSqlTestFile(t, dbTest, "../testdata/subscriptions.sql")
+			LoadSqlTestFileWithTx(t, tx, "../testdata/subscriptions.sql")
 
 			// Initialize mock repository
 			mockRepo := &MockRepo{}
 
 			// Mock SubscribeUpdates method behavior
-			if tc.expectedErr == "" {
-				// Expect SubscribeUpdates to succeed
-				mockRepo.On("SubscribeUpdates", ctx, tc.requestor, tc.target).Return(nil)
-			} else {
-				// Expect SubscribeUpdates to fail
-				mockRepo.On("SubscribeUpdates", ctx, tc.requestor, tc.target).Return(errors.New(tc.expectedErr))
-			}
+			mockRepo.On("SubscribeUpdates", ctx, tc.requestor, tc.target).Return(tc.expectedErr)
 
-			// Initialize repository with the mock
-			repo := friendRepository{DB: dbTest}
+			// Initialize repository with the mock and transaction
+			repo := friendRepository{DB: tx}
 
 			// When
 			err = repo.SubscribeUpdates(ctx, tc.requestor, tc.target)
 
+			// Rollback transaction
+			require.NoError(t, tx.Rollback())
+
 			// Then
-			if tc.expectedErr != "" {
-				assert.Contains(t, err.Error(), tc.expectedErr)
+			if tc.expectedErr != nil {
+				require.EqualError(t, err, tc.expectedErr.Error(), "Error message mismatch")
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err, "Unexpected error occurred")
 			}
+
+			// Log expected and actual error messages
+			t.Logf("Expected error: %q", tc.expectedErr)
+			t.Logf("Actual error: %q", err)
 		})
 	}
 }

@@ -130,11 +130,20 @@ func (repo *friendRepository) CheckSubscription(ctx context.Context, requestor, 
 
 // SubscribeUpdates subscribes the requestor to updates from the target.
 func (repo *friendRepository) SubscribeUpdates(ctx context.Context, requestor, target string) error {
+	// Check if the subscription already exists
+	exists, err := repo.CheckSubscription(ctx, requestor, target)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgSubscribeUpdates)
+	}
+	if exists {
+		return errors.New(response.ErrMsgSubscriptionAlreadyExists)
+	}
+
 	subscription := models.Subscription{
 		Requestor: requestor,
 		Target:    target,
 	}
-	err := subscription.Insert(ctx, repo.DB, boil.Infer())
+	err = subscription.Insert(ctx, repo.DB, boil.Infer())
 	if err != nil {
 		return errors.Wrap(err, response.ErrMsgSubscribeUpdates)
 	}

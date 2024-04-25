@@ -20,7 +20,9 @@ CREATE TABLE friend_connections (
 -- Create subscriptions table
 CREATE TABLE subscriptions (
     id SERIAL PRIMARY KEY,
-    requestor VARCHAR(255) NOT NULL,
-    target VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()  
+    requestor INT REFERENCES users(id) NOT NULL,
+    target INT REFERENCES users(id) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (requestor, target)
 );
+ 
