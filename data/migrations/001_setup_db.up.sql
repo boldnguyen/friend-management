@@ -16,3 +16,14 @@ CREATE TABLE friend_connections (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (user_id1, user_id2)
 );
+
+-- Create subscriptions table
+CREATE TABLE subscriptions (
+    id SERIAL PRIMARY KEY,
+    requestor INT REFERENCES users(id) NOT NULL,
+    target INT REFERENCES users(id) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (requestor, target)
+);
+
+ 

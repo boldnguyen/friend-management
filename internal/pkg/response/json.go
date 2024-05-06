@@ -10,15 +10,19 @@ import (
 
 // Error messages
 const (
-	ErrMsgDecodeRequest    = "failed to decode JSON data from request body"
-	ErrMsgInvalidRequest   = "Exactly two email addresses are required to create a friend connection"
-	ErrMsgCreateFriend     = "failed to create friend connection"
-	ErrMsgGetUserByEmail   = "failed to get user by email"
-	ErrMsgUserNotFound     = "user not found"
-	ErrMsgCheckFriend      = "failed to check if users are already friends"
-	ErrMsgAlreadyFriends   = "They are already friends"
-	ErrMsgGetFriendsList   = "failed to get friends list"
-	ErrMsgGetCommonFriends = "failed to retrieve common friends list"
+	ErrMsgDecodeRequest             = "failed to decode JSON data from request body"
+	ErrMsgInvalidRequest            = "Exactly two email addresses are required to create a friend connection"
+	ErrMsgCreateFriend              = "failed to create friend connection"
+	ErrMsgGetUserByEmail            = "failed to get user by email"
+	ErrMsgUserNotFound              = "user not found"
+	ErrMsgCheckFriend               = "failed to check if users are already friends"
+	ErrMsgAlreadyFriends            = "They are already friends"
+	ErrMsgGetFriendsList            = "failed to get friends list"
+	ErrMsgGetCommonFriends          = "failed to retrieve common friends list"
+	ErrMsgCheckSubscription         = "failed to check subscription"
+	ErrMsgSubscribeUpdates          = "failed to subscribe updates"
+	ErrMsgAlreadySubscribed         = "Already subscribed to updates from this email"
+	ErrMsgSubscriptionAlreadyExists = "subscription already exists"
 )
 
 // RespondSuccess responds basic success response

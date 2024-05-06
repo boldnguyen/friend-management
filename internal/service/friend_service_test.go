@@ -249,3 +249,91 @@ func TestGetCommonFriends(t *testing.T) {
 		})
 	}
 }
+
+// TestSubscribeUpdates tests the SubscribeUpdates method of the FriendService.
+func TestSubscribeUpdates(t *testing.T) {
+	type mockRepoService struct {
+		expCheckSubscription   bool  // Whether the CheckSubscription method is expected to be called
+		expExists              bool  // Expected return value of CheckSubscription method
+		expSubscribeUpdatesErr error // Expected error returned by SubscribeUpdates method
+	}
+
+	// Define test cases for different scenarios
+	tcs := map[string]struct {
+		requestor string          // Requestor's email
+		target    string          // Target's email
+		mockFn    mockRepoService // Function to set up mock
+		expError  string          // Expected error message
+	}{
+		"success": {
+			requestor: "requestor@example.com",
+			target:    "target@example.com",
+			mockFn: mockRepoService{
+				expCheckSubscription:   true,
+				expExists:              false,
+				expSubscribeUpdatesErr: nil,
+			},
+			expError: "",
+		},
+		"already_subscribed": {
+			requestor: "requestor@example.com",
+			target:    "target@example.com",
+			mockFn: mockRepoService{
+				expCheckSubscription:   true,
+				expExists:              true,
+				expSubscribeUpdatesErr: nil,
+			},
+			expError: response.ErrMsgAlreadySubscribed,
+		},
+		"error_check_subscription": {
+			requestor: "requestor@example.com",
+			target:    "target@example.com",
+			mockFn: mockRepoService{
+				expCheckSubscription:   true,
+				expExists:              false,
+				expSubscribeUpdatesErr: errors.New("failed to check subscription"),
+			},
+			expError: response.ErrMsgCheckSubscription,
+		},
+		"error_subscribe_updates": {
+			requestor: "requestor@example.com",
+			target:    "target@example.com",
+			mockFn: mockRepoService{
+				expCheckSubscription:   true,
+				expExists:              false,
+				expSubscribeUpdatesErr: errors.New("subscribe updates failed"),
+			},
+			expError: response.ErrMsgSubscribeUpdates,
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			mockRepo := new(repository.MockRepo)
+			friendService := NewFriendService(mockRepo)
+
+			// Set up mock expectations for CheckSubscription
+			mockRepo.On("CheckSubscription", mock.Anything, tc.requestor, tc.target).Return(tc.mockFn.expExists, nil).Once()
+
+			// Set up mock expectations for SubscribeUpdates
+			if !tc.mockFn.expExists {
+				mockRepo.On("SubscribeUpdates", mock.Anything, tc.requestor, tc.target).Return(tc.mockFn.expSubscribeUpdatesErr).Once()
+			}
+
+			// When
+			err := friendService.SubscribeUpdates(context.Background(), tc.requestor, tc.target)
+
+			// Then
+			if tc.expError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Assert that the expected calls to the mock repository were made
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}

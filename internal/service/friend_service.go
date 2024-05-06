@@ -106,3 +106,23 @@ func (serv friendService) GetCommonFriends(ctx context.Context, email1, email2 s
 
 	return commonFriends, nil
 }
+
+// SubscribeUpdates subscribes requestor to updates from target.
+func (serv *friendService) SubscribeUpdates(ctx context.Context, requestor, target string) error {
+	// Check if the subscription already exists
+	exists, err := serv.repo.CheckSubscription(ctx, requestor, target)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgCheckSubscription)
+	}
+	if exists {
+		return errors.New(response.ErrMsgAlreadySubscribed)
+	}
+
+	// Subscribe to updates
+	err = serv.repo.SubscribeUpdates(ctx, requestor, target)
+	if err != nil {
+		log.Printf("Failed to subscribe updates: %v", err)
+		return errors.Wrap(err, response.ErrMsgSubscribeUpdates)
+	}
+	return nil
+}

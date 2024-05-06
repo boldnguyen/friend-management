@@ -41,3 +41,15 @@ func (m *MockRepo) GetCommonFriends(ctx context.Context, userID1, userID2 int) (
 	args := m.Called(ctx, userID1, userID2)
 	return args.Get(0).([]string), args.Error(1)
 }
+
+// SubscribeUpdates mocks the SubscribeUpdates method.
+func (m *MockRepo) SubscribeUpdates(ctx context.Context, requestor, target string) error {
+	args := m.Called(ctx, requestor, target)
+	return args.Error(0)
+}
+
+// CheckSubscription mocks the CheckSubscription method.
+func (m *MockRepo) CheckSubscription(ctx context.Context, requestor, target string) (bool, error) {
+	args := m.Called(ctx, requestor, target)
+	return args.Bool(0), args.Error(1)
+}

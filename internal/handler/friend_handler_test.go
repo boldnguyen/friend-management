@@ -223,3 +223,68 @@ func TestCommonFriendsHandler_GetCommonFriends(t *testing.T) {
 		})
 	}
 }
+
+// TestSubscribeHandler_SubscribeUpdates tests the SubscribeHandler function for subscribing to updates.
+func TestSubscribeHandler_SubscribeUpdates(t *testing.T) {
+	type mockService struct {
+		expCall bool             // Whether the service method is expected to be called
+		input   SubscribeRequest // Input data expected to be passed to the service method
+		err     error            // Error expected to be returned by the service method
+	}
+
+	// Define test cases for different scenarios
+	tcs := map[string]struct {
+		req      SubscribeRequest // Input request data
+		mockFn   mockService      // Function to set up mock
+		expCode  int              // expected HTTP response code
+		expError string           // expected error message
+	}{
+		"success": {
+			req:     SubscribeRequest{Requestor: "subscriber@example.com", Target: "target@example.com"},
+			mockFn:  mockService{expCall: true, input: SubscribeRequest{Requestor: "subscriber@example.com", Target: "target@example.com"}, err: nil},
+			expCode: http.StatusOK,
+		},
+		"invalid_json": {
+			req:      SubscribeRequest{},                                              // Invalid JSON data
+			mockFn:   mockService{expCall: true, input: SubscribeRequest{}, err: nil}, // Mock function should be called
+			expCode:  http.StatusBadRequest,
+			expError: response.ErrMsgInvalidRequest,
+		},
+
+		// Add more test cases for other scenarios
+	}
+
+	// Iterate over each test case
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			mockFriendService := new(service.MockFriendService)
+			if tc.mockFn.expCall {
+				mockFriendService.On("SubscribeUpdates", mock.Anything, tc.mockFn.input.Requestor, tc.mockFn.input.Target).Return(tc.mockFn.err)
+			}
+			subscribeHandler := SubscribeHandler(mockFriendService)
+
+			// Marshal input data to JSON
+			body, _ := json.Marshal(tc.req)
+			// Create HTTP request with the JSON payload
+			req, err := http.NewRequest("POST", "/subscribe", bytes.NewBuffer(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+
+			// When
+			// Call the handler function to handle the HTTP request
+			subscribeHandler.ServeHTTP(rr, req)
+
+			// Then
+			// Assert the HTTP response code
+			require.Equal(t, tc.expCode, rr.Code)
+			// If an error message is expected, assert its presence in the response body
+			if tc.expError != "" {
+				require.True(t, strings.Contains(rr.Body.String(), tc.expError))
+			}
+			// Assert that the expected calls to the mock service were made
+			mockFriendService.AssertExpectations(t)
+		})
+	}
+}
