@@ -149,3 +149,24 @@ func (repo *friendRepository) SubscribeUpdates(ctx context.Context, requestor, t
 	}
 	return nil
 }
+
+// BlockUpdates blocks updates from a target email address for a requestor.
+func (repo *friendRepository) BlockUpdates(ctx context.Context, requestor, target string) error {
+	// Check if the subscription exists
+	exists, err := repo.CheckSubscription(ctx, requestor, target)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgCheckSubscription)
+	}
+	if !exists {
+		return errors.New(response.ErrMsgSubscriptionDoesNotExist)
+	}
+
+	// Delete the subscription
+	_, err = models.Subscriptions(
+		qm.Where("requestor = ? AND target = ?", requestor, target),
+	).DeleteAll(ctx, repo.DB)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgBlockUpdates)
+	}
+	return nil
+}

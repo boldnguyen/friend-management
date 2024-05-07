@@ -53,3 +53,9 @@ func (m *MockRepo) CheckSubscription(ctx context.Context, requestor, target stri
 	args := m.Called(ctx, requestor, target)
 	return args.Bool(0), args.Error(1)
 }
+
+// BlockUpdates mocks the BlockUpdates method.
+func (m *MockRepo) BlockUpdates(ctx context.Context, requestor, target string) error {
+	args := m.Called(ctx, requestor, target)
+	return args.Error(0)
+}

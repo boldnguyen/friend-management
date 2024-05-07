@@ -23,6 +23,8 @@ const (
 	ErrMsgSubscribeUpdates          = "failed to subscribe updates"
 	ErrMsgAlreadySubscribed         = "Already subscribed to updates from this email"
 	ErrMsgSubscriptionAlreadyExists = "subscription already exists"
+	ErrMsgBlockUpdates              = "Failed to block update"
+	ErrMsgSubscriptionDoesNotExist  = "The subscription does not exist"
 )
 
 // RespondSuccess responds basic success response

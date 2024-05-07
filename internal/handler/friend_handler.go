@@ -26,6 +26,10 @@ type SubscribeRequest struct {
 	Requestor string `json:"requestor" validate:"required,email"`
 	Target    string `json:"target" validate:"required,email"`
 }
+type BlockUpdatesRequest struct {
+	Requestor string `json:"requestor" validate:"required,email"`
+	Target    string `json:"target" validate:"required,email"`
+}
 
 // NewHandler creates a new HTTP handler for creating a friend connection.
 func NewHandler(friendService service.FriendService) http.HandlerFunc {
@@ -146,5 +150,29 @@ func SubscribeHandler(friendService service.FriendService) http.HandlerFunc {
 
 		// Respond with success
 		response.RespondSuccess(ctx, w, nil)
+	}
+}
+
+// BlockUpdatesHandler creates a new HTTP handler for blocking updates from an email address.
+func BlockUpdatesHandler(friendService service.FriendService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req BlockUpdatesRequest
+		ctx := r.Context()
+
+		// Decode the JSON data from the request body
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			response.RespondErr(ctx, w, http.StatusBadRequest, response.ErrMsgDecodeRequest)
+			return
+		}
+
+		// Call the friend service to block updates
+		err := friendService.BlockUpdates(ctx, req.Requestor, req.Target)
+		if err != nil {
+			response.RespondErr(ctx, w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// Respond with success
+		response.RespondSuccess(ctx, w, map[string]bool{"success": true})
 	}
 }

@@ -126,3 +126,33 @@ func (serv *friendService) SubscribeUpdates(ctx context.Context, requestor, targ
 	}
 	return nil
 }
+
+// BlockUpdates blocks updates from a target email address for a requestor.
+func (serv *friendService) BlockUpdates(ctx context.Context, requestor, target string) error {
+	// Get user IDs from emails
+	user1, err := serv.repo.GetUserByEmail(ctx, requestor)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+	user2, err := serv.repo.GetUserByEmail(ctx, target)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	// Check if the users are friends
+	areFriends, err := serv.repo.CheckFriends(ctx, user1.ID, user2.ID)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgCheckFriend)
+	}
+	if !areFriends {
+		return errors.New(response.ErrMsgCheckFriend)
+	}
+
+	// Block updates
+	err = serv.repo.BlockUpdates(ctx, requestor, target)
+	if err != nil {
+		log.Printf("Failed to block updates: %v", err)
+		return errors.Wrap(err, response.ErrMsgBlockUpdates)
+	}
+	return nil
+}

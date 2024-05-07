@@ -17,6 +17,7 @@ type FriendRepository interface {
 	GetCommonFriends(ctx context.Context, userID1, userID2 int) ([]string, error)
 	CheckSubscription(ctx context.Context, requestor, target string) (bool, error) // New method
 	SubscribeUpdates(ctx context.Context, requestor, target string) error
+	BlockUpdates(ctx context.Context, requestor, target string) error
 }
 
 // friendRepository implements the FriendRepository interface.
