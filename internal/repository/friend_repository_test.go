@@ -431,3 +431,69 @@ func TestFriendRepository_SubscribeUpdates(t *testing.T) {
 		})
 	}
 }
+
+// TestFriendRepository_BlockUpdates tests the BlockUpdates method of the friendRepository.
+func TestFriendRepository_BlockUpdates(t *testing.T) {
+	tcs := map[string]struct {
+		requestor   string
+		target      string
+		expectedErr error
+	}{
+		"block_success": {
+			requestor:   "user1@example.com",
+			target:      "user2@example.com",
+			expectedErr: nil,
+		},
+		"block_failure_subscription_does_not_exist": {
+			requestor:   "user1@example.com",
+			target:      "user4@example.com",
+			expectedErr: errors.New(response.ErrMsgSubscriptionDoesNotExist),
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			ctx := context.Background()
+
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
+
+			// Start transaction
+			tx, err := dbTest.Begin()
+			require.NoError(t, err)
+
+			// Load test data
+			LoadSqlTestFileWithTx(t, tx, "../testdata/subscriptions.sql")
+
+			// Initialize mock repository
+			mockRepo := &MockRepo{}
+
+			// Mock BlockUpdates method behavior
+			mockRepo.On("BlockUpdates", ctx, tc.requestor, tc.target).Return(tc.expectedErr)
+
+			// Initialize repository with the mock and transaction
+			repo := friendRepository{DB: tx}
+
+			// When
+			err = repo.BlockUpdates(ctx, tc.requestor, tc.target)
+
+			// Rollback transaction
+			require.NoError(t, tx.Rollback())
+
+			// Then
+			if tc.expectedErr != nil {
+				require.EqualError(t, err, tc.expectedErr.Error(), "Error message mismatch")
+			} else {
+				require.NoError(t, err, "Unexpected error occured")
+			}
+
+			// Log expected and actual error messages
+			t.Logf("Expected error: %q", tc.expectedErr)
+			t.Logf("Acutal error: %q", err)
+
+		})
+	}
+}
