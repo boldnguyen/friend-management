@@ -127,32 +127,41 @@ func (serv *friendService) SubscribeUpdates(ctx context.Context, requestor, targ
 	return nil
 }
 
-// BlockUpdates blocks updates from a target email address for a requestor.
-func (serv *friendService) BlockUpdates(ctx context.Context, requestor, target string) error {
-	// Get user IDs from emails
-	user1, err := serv.repo.GetUserByEmail(ctx, requestor)
-	if err != nil {
-		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
-	}
-	user2, err := serv.repo.GetUserByEmail(ctx, target)
+// BlockUpdates handles the business logic for blocking updates.
+func (serv *friendService) BlockUpdates(ctx context.Context, requestorEmail, targetEmail string) error {
+	// Retrieve users by email
+	requestorUser, err := serv.repo.GetUserByEmail(ctx, requestorEmail)
 	if err != nil {
 		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
 	}
 
-	// Check if the users are friends
-	areFriends, err := serv.repo.CheckFriends(ctx, user1.ID, user2.ID)
+	targetUser, err := serv.repo.GetUserByEmail(ctx, targetEmail)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	requestorID := requestorUser.ID
+	targetID := targetUser.ID
+
+	// Check if users are friends
+	areFriends, err := serv.repo.CheckFriends(ctx, requestorID, targetID)
 	if err != nil {
 		return errors.Wrap(err, response.ErrMsgCheckFriend)
 	}
-	if !areFriends {
-		return errors.New(response.ErrMsgCheckFriend)
+
+	if areFriends {
+		// Delete the subscription
+		err = serv.repo.DeleteSubscription(ctx, requestorID, targetID)
+		if err != nil {
+			return errors.Wrap(err, response.ErrMsgRemoveSubscription)
+		}
 	}
 
-	// Block updates
-	err = serv.repo.BlockUpdates(ctx, requestor, target)
+	// Block the user
+	err = serv.repo.BlockUser(ctx, requestorID, targetID)
 	if err != nil {
-		log.Printf("Failed to block updates: %v", err)
-		return errors.Wrap(err, response.ErrMsgBlockUpdates)
+		return errors.Wrap(err, response.ErrMsgBlockUser)
 	}
+
 	return nil
 }

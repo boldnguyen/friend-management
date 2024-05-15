@@ -10,20 +10,37 @@ CREATE TABLE users (
 -- Create friend_connections table
 CREATE TABLE friend_connections (
     id SERIAL PRIMARY KEY,
-    user_id1 INT REFERENCES users(id) NOT NULL,
-    user_id2 INT REFERENCES users(id) NOT NULL,
+    user_id1 INT NOT NULL,
+    user_id2 INT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (user_id1, user_id2)
+    UNIQUE (user_id1, user_id2),
+    FOREIGN KEY (user_id1) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id2) REFERENCES users(id) ON DELETE CASCADE,
+    CHECK (user_id1 <> user_id2) -- Ensures a user cannot friend themselves
 );
 
 -- Create subscriptions table
 CREATE TABLE subscriptions (
     id SERIAL PRIMARY KEY,
-    requestor INT REFERENCES users(id) NOT NULL,
-    target INT REFERENCES users(id) NOT NULL,
+    requestor INT NOT NULL,
+    target INT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (requestor, target)
+    UNIQUE (requestor, target),
+    FOREIGN KEY (requestor) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (target) REFERENCES users(id) ON DELETE CASCADE,
+    CHECK (requestor <> target) -- Ensures a user cannot subscribe to themselves
 );
 
- 
+-- Create blocks table
+CREATE TABLE blocks (
+    id SERIAL PRIMARY KEY,
+    requestor INT NOT NULL,
+    target INT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (requestor, target),
+    FOREIGN KEY (requestor) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (target) REFERENCES users(id) ON DELETE CASCADE,
+    CHECK (requestor <> target) -- Ensures a user cannot block themselves
+);
+
