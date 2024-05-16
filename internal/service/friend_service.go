@@ -126,3 +126,42 @@ func (serv *friendService) SubscribeUpdates(ctx context.Context, requestor, targ
 	}
 	return nil
 }
+
+// BlockUpdates handles the business logic for blocking updates.
+func (serv *friendService) BlockUpdates(ctx context.Context, requestorEmail, targetEmail string) error {
+	// Retrieve users by email
+	requestorUser, err := serv.repo.GetUserByEmail(ctx, requestorEmail)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	targetUser, err := serv.repo.GetUserByEmail(ctx, targetEmail)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	requestorID := requestorUser.ID
+	targetID := targetUser.ID
+
+	// Check if users are friends
+	areFriends, err := serv.repo.CheckFriends(ctx, requestorID, targetID)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgCheckFriend)
+	}
+
+	if areFriends {
+		// Delete the subscription
+		err = serv.repo.DeleteSubscription(ctx, requestorID, targetID)
+		if err != nil {
+			return errors.Wrap(err, response.ErrMsgRemoveSubscription)
+		}
+	}
+
+	// Block the user
+	err = serv.repo.BlockUser(ctx, requestorID, targetID)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgBlockUser)
+	}
+
+	return nil
+}

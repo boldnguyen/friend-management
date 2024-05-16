@@ -34,3 +34,9 @@ func (m *MockFriendService) SubscribeUpdates(ctx context.Context, requestor, tar
 	args := m.Called(ctx, requestor, target)
 	return args.Error(0)
 }
+
+// BlockUpdates mocks the BlockUpdates method of the FriendService interface.
+func (m *MockFriendService) BlockUpdates(ctx context.Context, requestor, target string) error {
+	args := m.Called(ctx, requestor, target)
+	return args.Error(0)
+}

@@ -149,3 +149,27 @@ func (repo *friendRepository) SubscribeUpdates(ctx context.Context, requestor, t
 	}
 	return nil
 }
+
+// DeleteSubscription deletes a subscription from the database.
+func (repo *friendRepository) DeleteSubscription(ctx context.Context, requestorID, targetID int) error {
+	_, err := models.Subscriptions(
+		qm.Where("requestor = ? AND target = ?", requestorID, targetID),
+	).DeleteAll(ctx, repo.DB)
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgBlockUpdates)
+	}
+	return nil
+}
+
+// BlockUser inserts a block entry into the database.
+func (repo *friendRepository) BlockUser(ctx context.Context, requestorID, targetID int) error {
+	block := models.Block{
+		Requestor: requestorID,
+		Target:    targetID,
+	}
+	err := block.Insert(ctx, repo.DB, boil.Infer())
+	if err != nil {
+		return errors.Wrap(err, response.ErrMsgBlockUpdates)
+	}
+	return nil
+}

@@ -337,3 +337,106 @@ func TestSubscribeUpdates(t *testing.T) {
 		})
 	}
 }
+
+// TestBlockUpdates tests the BlockUpdates method of the FriendService.
+func TestBlockUpdates(t *testing.T) {
+	type mockRepoService struct {
+		expGetUserByEmail  map[string]*models.User // Expected GetUserByEmail return values
+		expCheckFriends    bool                    // Expected CheckFriends return value
+		expBlockUpdatesErr error                   // Expected BlockUpdates error
+	}
+	// Define test cases for different scenarios
+	tcs := map[string]struct {
+		requestor string          // Requestor's email
+		target    string          // Target's email
+		mockFn    mockRepoService // Function to set up mock
+		expError  string          // Expected error message
+	}{
+		"success": {
+			requestor: "requestor@example.com",
+			target:    "target@example.com",
+			mockFn: mockRepoService{
+				expGetUserByEmail: map[string]*models.User{
+					"requestor@example.com": {ID: 1},
+					"target@example.com":    {ID: 2},
+				},
+				expCheckFriends:    true, // Users are friends
+				expBlockUpdatesErr: nil,
+			},
+			expError: "",
+		},
+		"error_get_user_by_email": {
+			requestor: "requestor@example.com",
+			target:    "target@example.com",
+			mockFn: mockRepoService{
+				expGetUserByEmail: map[string]*models.User{
+					"requestor@example.com": {}, // Requestor not found
+					"target@example.com":    {ID: 2},
+				},
+				expCheckFriends:    false,
+				expBlockUpdatesErr: nil,
+			},
+			expError: response.ErrMsgCheckFriend,
+		},
+		"error_check_friends": {
+			requestor: "requestor@example.com",
+			target:    "target@example.com",
+			mockFn: mockRepoService{
+				expGetUserByEmail: map[string]*models.User{
+					"requestor@example.com": {ID: 1},
+					"target@example.com":    {ID: 2},
+				},
+				expCheckFriends:    false, // Users are not friends
+				expBlockUpdatesErr: nil,
+			},
+			expError: response.ErrMsgCheckFriend,
+		},
+		"error_block_updates": {
+			requestor: "requestor@example.com",
+			target:    "target@example.com",
+			mockFn: mockRepoService{
+				expGetUserByEmail: map[string]*models.User{
+					"requestor@example.com": {ID: 1},
+					"target@example.com":    {ID: 2},
+				},
+				expCheckFriends:    true, // Users are friends
+				expBlockUpdatesErr: errors.New("block updates failed"),
+			},
+			expError: response.ErrMsgBlockUpdates,
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			mockRepo := new(repository.MockRepo)
+			friendService := NewFriendService(mockRepo)
+
+			// Set up mock expectations for GetUserByEmail
+			mockRepo.On("GetUserByEmail", mock.Anything, tc.requestor).Return(tc.mockFn.expGetUserByEmail[tc.requestor], nil).Once()
+			mockRepo.On("GetUserByEmail", mock.Anything, tc.target).Return(tc.mockFn.expGetUserByEmail[tc.target], nil).Once()
+
+			// Set up mock expectations for CheckFriends
+			mockRepo.On("CheckFriends", mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int")).Return(tc.mockFn.expCheckFriends, nil).Once()
+
+			// Set up mock expectations for BlockUpdates
+			if tc.mockFn.expCheckFriends && tc.mockFn.expGetUserByEmail[tc.requestor] != nil && tc.mockFn.expGetUserByEmail[tc.target] != nil {
+				mockRepo.On("BlockUpdates", mock.Anything, tc.requestor, tc.target).Return(tc.mockFn.expBlockUpdatesErr).Once()
+			}
+
+			// When
+			err := friendService.BlockUpdates(context.Background(), tc.requestor, tc.target)
+
+			// Then
+			if tc.expError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Assert that the expected calls to the mock repository were made
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}

@@ -288,3 +288,66 @@ func TestSubscribeHandler_SubscribeUpdates(t *testing.T) {
 		})
 	}
 }
+
+// TestBlockUpdatesHandler_BlockUpdates tests the BlockUpdatesHandler function for blocking updates.
+func TestBlockUpdatesHandler_BlockUpdates(t *testing.T) {
+	type mockService struct {
+		expCall bool
+		input   BlockUpdatesRequest
+		err     error
+	}
+
+	// Define test cases for different scenarios
+	tcs := map[string]struct {
+		req      BlockUpdatesRequest // Input request data
+		mockFn   mockService         // Function to set up mock
+		expCode  int                 // expected HTTP response code
+		expError string              // expected error message
+	}{
+		"success": {
+			req:     BlockUpdatesRequest{Requestor: "andy@example.com", Target: "john@example.com"},
+			mockFn:  mockService{expCall: true, input: BlockUpdatesRequest{Requestor: "andy@example.com", Target: "john@example.com"}, err: nil},
+			expCode: http.StatusOK,
+		},
+		"service_error": {
+			req:      BlockUpdatesRequest{Requestor: "andy@example.com", Target: "john@example.com"},
+			mockFn:   mockService{expCall: true, input: BlockUpdatesRequest{Requestor: "andy@example.com", Target: "john@example.com"}, err: errors.New("Failed to block updates")},
+			expCode:  http.StatusInternalServerError,
+			expError: response.ErrMsgBlockUpdates,
+		},
+	}
+
+	// Iterate over each test case
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			mockFriendService := new(service.MockFriendService)
+			if tc.mockFn.expCall {
+				mockFriendService.On("BlockUpdates", mock.Anything, tc.mockFn.input.Requestor, tc.mockFn.input.Target).Return(tc.mockFn.err)
+			}
+			blockUpdatesHandler := BlockUpdatesHandler(mockFriendService)
+
+			// Marshal input data to JSON
+			body, _ := json.Marshal(tc.req)
+			// Create HTTP request with the JSON payload
+			req, err := http.NewRequest("POST", "/block", bytes.NewBuffer(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+
+			// When
+			// Call the handler function to handle the HTTP request
+			blockUpdatesHandler.ServeHTTP(rr, req)
+
+			// Then
+			// Assert the HTTP response code
+			require.Equal(t, tc.expCode, rr.Code)
+			// If an error message is expected, assert its presence in the response body
+			if tc.expError != "" {
+				require.Contains(t, rr.Body.String(), tc.expError)
+			}
+			// Assert that the expected calls to the mock service were made
+			mockFriendService.AssertExpectations(t)
+		})
+	}
+}

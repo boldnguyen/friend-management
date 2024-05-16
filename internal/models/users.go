@@ -79,15 +79,21 @@ var UserWhere = struct {
 
 // UserRels is where relationship names are stored.
 var UserRels = struct {
+	RequestorBlocks          string
+	TargetBlocks             string
 	UserID1FriendConnections string
 	UserID2FriendConnections string
 }{
+	RequestorBlocks:          "RequestorBlocks",
+	TargetBlocks:             "TargetBlocks",
 	UserID1FriendConnections: "UserID1FriendConnections",
 	UserID2FriendConnections: "UserID2FriendConnections",
 }
 
 // userR is where relationships are stored.
 type userR struct {
+	RequestorBlocks          BlockSlice            `boil:"RequestorBlocks" json:"RequestorBlocks" toml:"RequestorBlocks" yaml:"RequestorBlocks"`
+	TargetBlocks             BlockSlice            `boil:"TargetBlocks" json:"TargetBlocks" toml:"TargetBlocks" yaml:"TargetBlocks"`
 	UserID1FriendConnections FriendConnectionSlice `boil:"UserID1FriendConnections" json:"UserID1FriendConnections" toml:"UserID1FriendConnections" yaml:"UserID1FriendConnections"`
 	UserID2FriendConnections FriendConnectionSlice `boil:"UserID2FriendConnections" json:"UserID2FriendConnections" toml:"UserID2FriendConnections" yaml:"UserID2FriendConnections"`
 }
@@ -95,6 +101,20 @@ type userR struct {
 // NewStruct creates a new relationship struct
 func (*userR) NewStruct() *userR {
 	return &userR{}
+}
+
+func (r *userR) GetRequestorBlocks() BlockSlice {
+	if r == nil {
+		return nil
+	}
+	return r.RequestorBlocks
+}
+
+func (r *userR) GetTargetBlocks() BlockSlice {
+	if r == nil {
+		return nil
+	}
+	return r.TargetBlocks
 }
 
 func (r *userR) GetUserID1FriendConnections() FriendConnectionSlice {
@@ -213,6 +233,34 @@ func (q userQuery) Exists(ctx context.Context, exec boil.ContextExecutor) (bool,
 	return count > 0, nil
 }
 
+// RequestorBlocks retrieves all the block's Blocks with an executor via requestor column.
+func (o *User) RequestorBlocks(mods ...qm.QueryMod) blockQuery {
+	var queryMods []qm.QueryMod
+	if len(mods) != 0 {
+		queryMods = append(queryMods, mods...)
+	}
+
+	queryMods = append(queryMods,
+		qm.Where("\"blocks\".\"requestor\"=?", o.ID),
+	)
+
+	return Blocks(queryMods...)
+}
+
+// TargetBlocks retrieves all the block's Blocks with an executor via target column.
+func (o *User) TargetBlocks(mods ...qm.QueryMod) blockQuery {
+	var queryMods []qm.QueryMod
+	if len(mods) != 0 {
+		queryMods = append(queryMods, mods...)
+	}
+
+	queryMods = append(queryMods,
+		qm.Where("\"blocks\".\"target\"=?", o.ID),
+	)
+
+	return Blocks(queryMods...)
+}
+
 // UserID1FriendConnections retrieves all the friend_connection's FriendConnections with an executor via user_id1 column.
 func (o *User) UserID1FriendConnections(mods ...qm.QueryMod) friendConnectionQuery {
 	var queryMods []qm.QueryMod
@@ -239,6 +287,218 @@ func (o *User) UserID2FriendConnections(mods ...qm.QueryMod) friendConnectionQue
 	)
 
 	return FriendConnections(queryMods...)
+}
+
+// LoadRequestorBlocks allows an eager lookup of values, cached into the
+// loaded structs of the objects. This is for a 1-M or N-M relationship.
+func (userL) LoadRequestorBlocks(ctx context.Context, e boil.ContextExecutor, singular bool, maybeUser interface{}, mods queries.Applicator) error {
+	var slice []*User
+	var object *User
+
+	if singular {
+		var ok bool
+		object, ok = maybeUser.(*User)
+		if !ok {
+			object = new(User)
+			ok = queries.SetFromEmbeddedStruct(&object, &maybeUser)
+			if !ok {
+				return errors.New(fmt.Sprintf("failed to set %T from embedded struct %T", object, maybeUser))
+			}
+		}
+	} else {
+		s, ok := maybeUser.(*[]*User)
+		if ok {
+			slice = *s
+		} else {
+			ok = queries.SetFromEmbeddedStruct(&slice, maybeUser)
+			if !ok {
+				return errors.New(fmt.Sprintf("failed to set %T from embedded struct %T", slice, maybeUser))
+			}
+		}
+	}
+
+	args := make(map[interface{}]struct{})
+	if singular {
+		if object.R == nil {
+			object.R = &userR{}
+		}
+		args[object.ID] = struct{}{}
+	} else {
+		for _, obj := range slice {
+			if obj.R == nil {
+				obj.R = &userR{}
+			}
+			args[obj.ID] = struct{}{}
+		}
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	argsSlice := make([]interface{}, len(args))
+	i := 0
+	for arg := range args {
+		argsSlice[i] = arg
+		i++
+	}
+
+	query := NewQuery(
+		qm.From(`blocks`),
+		qm.WhereIn(`blocks.requestor in ?`, argsSlice...),
+	)
+	if mods != nil {
+		mods.Apply(query)
+	}
+
+	results, err := query.QueryContext(ctx, e)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load blocks")
+	}
+
+	var resultSlice []*Block
+	if err = queries.Bind(results, &resultSlice); err != nil {
+		return errors.Wrap(err, "failed to bind eager loaded slice blocks")
+	}
+
+	if err = results.Close(); err != nil {
+		return errors.Wrap(err, "failed to close results in eager load on blocks")
+	}
+	if err = results.Err(); err != nil {
+		return errors.Wrap(err, "error occurred during iteration of eager loaded relations for blocks")
+	}
+
+	if singular {
+		object.R.RequestorBlocks = resultSlice
+		for _, foreign := range resultSlice {
+			if foreign.R == nil {
+				foreign.R = &blockR{}
+			}
+			foreign.R.RequestorUser = object
+		}
+		return nil
+	}
+
+	for _, foreign := range resultSlice {
+		for _, local := range slice {
+			if local.ID == foreign.Requestor {
+				local.R.RequestorBlocks = append(local.R.RequestorBlocks, foreign)
+				if foreign.R == nil {
+					foreign.R = &blockR{}
+				}
+				foreign.R.RequestorUser = local
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
+// LoadTargetBlocks allows an eager lookup of values, cached into the
+// loaded structs of the objects. This is for a 1-M or N-M relationship.
+func (userL) LoadTargetBlocks(ctx context.Context, e boil.ContextExecutor, singular bool, maybeUser interface{}, mods queries.Applicator) error {
+	var slice []*User
+	var object *User
+
+	if singular {
+		var ok bool
+		object, ok = maybeUser.(*User)
+		if !ok {
+			object = new(User)
+			ok = queries.SetFromEmbeddedStruct(&object, &maybeUser)
+			if !ok {
+				return errors.New(fmt.Sprintf("failed to set %T from embedded struct %T", object, maybeUser))
+			}
+		}
+	} else {
+		s, ok := maybeUser.(*[]*User)
+		if ok {
+			slice = *s
+		} else {
+			ok = queries.SetFromEmbeddedStruct(&slice, maybeUser)
+			if !ok {
+				return errors.New(fmt.Sprintf("failed to set %T from embedded struct %T", slice, maybeUser))
+			}
+		}
+	}
+
+	args := make(map[interface{}]struct{})
+	if singular {
+		if object.R == nil {
+			object.R = &userR{}
+		}
+		args[object.ID] = struct{}{}
+	} else {
+		for _, obj := range slice {
+			if obj.R == nil {
+				obj.R = &userR{}
+			}
+			args[obj.ID] = struct{}{}
+		}
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	argsSlice := make([]interface{}, len(args))
+	i := 0
+	for arg := range args {
+		argsSlice[i] = arg
+		i++
+	}
+
+	query := NewQuery(
+		qm.From(`blocks`),
+		qm.WhereIn(`blocks.target in ?`, argsSlice...),
+	)
+	if mods != nil {
+		mods.Apply(query)
+	}
+
+	results, err := query.QueryContext(ctx, e)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load blocks")
+	}
+
+	var resultSlice []*Block
+	if err = queries.Bind(results, &resultSlice); err != nil {
+		return errors.Wrap(err, "failed to bind eager loaded slice blocks")
+	}
+
+	if err = results.Close(); err != nil {
+		return errors.Wrap(err, "failed to close results in eager load on blocks")
+	}
+	if err = results.Err(); err != nil {
+		return errors.Wrap(err, "error occurred during iteration of eager loaded relations for blocks")
+	}
+
+	if singular {
+		object.R.TargetBlocks = resultSlice
+		for _, foreign := range resultSlice {
+			if foreign.R == nil {
+				foreign.R = &blockR{}
+			}
+			foreign.R.TargetUser = object
+		}
+		return nil
+	}
+
+	for _, foreign := range resultSlice {
+		for _, local := range slice {
+			if local.ID == foreign.Target {
+				local.R.TargetBlocks = append(local.R.TargetBlocks, foreign)
+				if foreign.R == nil {
+					foreign.R = &blockR{}
+				}
+				foreign.R.TargetUser = local
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 // LoadUserID1FriendConnections allows an eager lookup of values, cached into the
@@ -450,6 +710,112 @@ func (userL) LoadUserID2FriendConnections(ctx context.Context, e boil.ContextExe
 		}
 	}
 
+	return nil
+}
+
+// AddRequestorBlocks adds the given related objects to the existing relationships
+// of the user, optionally inserting them as new records.
+// Appends related to o.R.RequestorBlocks.
+// Sets related.R.RequestorUser appropriately.
+func (o *User) AddRequestorBlocks(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*Block) error {
+	var err error
+	for _, rel := range related {
+		if insert {
+			rel.Requestor = o.ID
+			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
+				return errors.Wrap(err, "failed to insert into foreign table")
+			}
+		} else {
+			updateQuery := fmt.Sprintf(
+				"UPDATE \"blocks\" SET %s WHERE %s",
+				strmangle.SetParamNames("\"", "\"", 1, []string{"requestor"}),
+				strmangle.WhereClause("\"", "\"", 2, blockPrimaryKeyColumns),
+			)
+			values := []interface{}{o.ID, rel.ID}
+
+			if boil.IsDebug(ctx) {
+				writer := boil.DebugWriterFrom(ctx)
+				fmt.Fprintln(writer, updateQuery)
+				fmt.Fprintln(writer, values)
+			}
+			if _, err = exec.ExecContext(ctx, updateQuery, values...); err != nil {
+				return errors.Wrap(err, "failed to update foreign table")
+			}
+
+			rel.Requestor = o.ID
+		}
+	}
+
+	if o.R == nil {
+		o.R = &userR{
+			RequestorBlocks: related,
+		}
+	} else {
+		o.R.RequestorBlocks = append(o.R.RequestorBlocks, related...)
+	}
+
+	for _, rel := range related {
+		if rel.R == nil {
+			rel.R = &blockR{
+				RequestorUser: o,
+			}
+		} else {
+			rel.R.RequestorUser = o
+		}
+	}
+	return nil
+}
+
+// AddTargetBlocks adds the given related objects to the existing relationships
+// of the user, optionally inserting them as new records.
+// Appends related to o.R.TargetBlocks.
+// Sets related.R.TargetUser appropriately.
+func (o *User) AddTargetBlocks(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*Block) error {
+	var err error
+	for _, rel := range related {
+		if insert {
+			rel.Target = o.ID
+			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
+				return errors.Wrap(err, "failed to insert into foreign table")
+			}
+		} else {
+			updateQuery := fmt.Sprintf(
+				"UPDATE \"blocks\" SET %s WHERE %s",
+				strmangle.SetParamNames("\"", "\"", 1, []string{"target"}),
+				strmangle.WhereClause("\"", "\"", 2, blockPrimaryKeyColumns),
+			)
+			values := []interface{}{o.ID, rel.ID}
+
+			if boil.IsDebug(ctx) {
+				writer := boil.DebugWriterFrom(ctx)
+				fmt.Fprintln(writer, updateQuery)
+				fmt.Fprintln(writer, values)
+			}
+			if _, err = exec.ExecContext(ctx, updateQuery, values...); err != nil {
+				return errors.Wrap(err, "failed to update foreign table")
+			}
+
+			rel.Target = o.ID
+		}
+	}
+
+	if o.R == nil {
+		o.R = &userR{
+			TargetBlocks: related,
+		}
+	} else {
+		o.R.TargetBlocks = append(o.R.TargetBlocks, related...)
+	}
+
+	for _, rel := range related {
+		if rel.R == nil {
+			rel.R = &blockR{
+				TargetUser: o,
+			}
+		} else {
+			rel.R.TargetUser = o
+		}
+	}
 	return nil
 }
 

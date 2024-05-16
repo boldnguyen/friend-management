@@ -431,3 +431,136 @@ func TestFriendRepository_SubscribeUpdates(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteSubscription(t *testing.T) {
+	tcs := map[string]struct {
+		requestorID int
+		targetID    int
+		expectedErr error
+	}{
+		"delete_success": {
+			requestorID: 1,
+			targetID:    2,
+			expectedErr: nil,
+		},
+		"delete_failure_subscription_does_not_exist": {
+			requestorID: 1,
+			targetID:    4,
+			expectedErr: errors.New(response.ErrMsgSubscriptionDoesNotExist),
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			ctx := context.Background()
+
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
+
+			// Start transaction
+			tx, err := dbTest.Begin()
+			require.NoError(t, err)
+
+			// Load test data
+			LoadSqlTestFileWithTx(t, tx, "../testdata/subscriptions.sql")
+
+			// Initialize mock repository
+			mockRepo := &MockRepo{}
+
+			// Mock DeleteSubscription method behavior
+			mockRepo.On("DeleteSubscription", ctx, tc.requestorID, tc.targetID).Return(tc.expectedErr)
+
+			// Initialize repository with the mock and transaction
+			repo := friendRepository{DB: tx}
+
+			// When
+			err = repo.DeleteSubscription(ctx, tc.requestorID, tc.targetID)
+
+			// Rollback transaction
+			require.NoError(t, tx.Rollback())
+
+			// Then
+			if tc.expectedErr != nil {
+				require.EqualError(t, err, tc.expectedErr.Error(), "Error message mismatch")
+			} else {
+				require.NoError(t, err, "Unexpected error occurred")
+			}
+
+			// Log expected and actual error messages
+			t.Logf("Expected error: %q", tc.expectedErr)
+			t.Logf("Actual error: %q", err)
+		})
+	}
+}
+
+// TestFriendRepository_BlockUpdates tests the BlockUpdates method of the friendRepository.
+func TestFriendRepository_BlockUpdates(t *testing.T) {
+	tcs := map[string]struct {
+		requestor   string
+		target      string
+		expectedErr error
+	}{
+		"block_success": {
+			requestor:   "user1@example.com",
+			target:      "user2@example.com",
+			expectedErr: nil,
+		},
+		"block_failure_subscription_does_not_exist": {
+			requestor:   "user1@example.com",
+			target:      "user4@example.com",
+			expectedErr: errors.New(response.ErrMsgSubscriptionDoesNotExist),
+		},
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			ctx := context.Background()
+
+			// Open test database connection
+			dbTest, err := db.ConnectDB("postgres://friend-management:1234@localhost:5432/friend-management?sslmode=disable")
+			require.NoError(t, err)
+			defer dbTest.Close()
+
+			// Start transaction
+			tx, err := dbTest.Begin()
+			require.NoError(t, err)
+
+			// Load test data
+			LoadSqlTestFileWithTx(t, tx, "../testdata/subscriptions.sql")
+
+			// Initialize mock repository
+			mockRepo := &MockRepo{}
+
+			// Mock GetUserByEmail method behavior to return user IDs
+			mockRepo.On("GetUserByEmail", ctx, tc.requestor).Return(&models.User{ID: 1}, nil)
+			mockRepo.On("GetUserByEmail", ctx, tc.target).Return(&models.User{ID: 2}, nil)
+
+			// Mock BlockUser method behavior
+			mockRepo.On("BlockUser", ctx, 1, 2).Return(tc.expectedErr)
+
+			// Initialize repository with the mock and transaction
+			repo := friendRepository{DB: tx}
+
+			// When
+			err = repo.BlockUser(ctx, 1, 2)
+
+			// Rollback transaction
+			require.NoError(t, tx.Rollback())
+
+			// Then
+			if tc.expectedErr != nil {
+				require.EqualError(t, err, tc.expectedErr.Error(), "Error message mismatch")
+			} else {
+				require.NoError(t, err, "Unexpected error occurred")
+			}
+
+			// Log expected and actual error messages
+			t.Logf("Expected error: %q", tc.expectedErr)
+			t.Logf("Actual error: %q", err)
+		})
+	}
+}

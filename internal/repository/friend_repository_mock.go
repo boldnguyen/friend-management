@@ -53,3 +53,15 @@ func (m *MockRepo) CheckSubscription(ctx context.Context, requestor, target stri
 	args := m.Called(ctx, requestor, target)
 	return args.Bool(0), args.Error(1)
 }
+
+// DeleteSubscription mocks the DeleteSubscription method.
+func (m *MockRepo) DeleteSubscription(ctx context.Context, requestorID, targetID int) error {
+	args := m.Called(ctx, requestorID, targetID)
+	return args.Error(0)
+}
+
+// BlockUser mocks the BlockUser method.
+func (m *MockRepo) BlockUser(ctx context.Context, requestorID, targetID int) error {
+	args := m.Called(ctx, requestorID, targetID)
+	return args.Error(0)
+}
