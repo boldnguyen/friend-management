@@ -65,3 +65,15 @@ func (m *MockRepo) BlockUser(ctx context.Context, requestorID, targetID int) err
 	args := m.Called(ctx, requestorID, targetID)
 	return args.Error(0)
 }
+
+// GetSubscribers mocks the GetSubscribers method.
+func (m *MockRepo) GetSubscribers(ctx context.Context, userID int) ([]string, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).([]string), args.Error(1)
+}
+
+// HasBlockedUpdates mocks the HasBlockedUpdates method.
+func (m *MockRepo) HasBlockedUpdates(ctx context.Context, targetEmail, senderEmail string) (bool, error) {
+	args := m.Called(ctx, targetEmail, senderEmail)
+	return args.Bool(0), args.Error(1)
+}

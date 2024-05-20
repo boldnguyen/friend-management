@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
 	"github.com/pkg/errors"
@@ -164,4 +165,78 @@ func (serv *friendService) BlockUpdates(ctx context.Context, requestorEmail, tar
 	}
 
 	return nil
+}
+
+// GetEligibleRecipients retrieves all email addresses that can receive updates from an email address.
+func (serv *friendService) GetEligibleRecipients(ctx context.Context, senderEmail, text string) ([]string, error) {
+	senderUser, err := serv.repo.GetUserByEmail(ctx, senderEmail)
+	if err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	senderID := senderUser.ID
+
+	friends, err := serv.repo.GetFriendsList(ctx, senderID)
+	if err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgGetFriendsList)
+	}
+
+	subscribers, err := serv.repo.GetSubscribers(ctx, senderID)
+	if err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
+	}
+
+	mentionedEmails := extractMentionedEmails(text)
+
+	recipientsSet := make(map[string]struct{})
+	for _, friendEmail := range friends {
+		blocked, err := serv.repo.HasBlockedUpdates(ctx, friendEmail, senderEmail)
+		if err != nil {
+			return nil, errors.Wrap(err, response.ErrMsgBlockUpdates)
+		}
+		if !blocked {
+			recipientsSet[friendEmail] = struct{}{}
+		}
+	}
+
+	for _, subscriberEmail := range subscribers {
+		blocked, err := serv.repo.HasBlockedUpdates(ctx, subscriberEmail, senderEmail)
+		if err != nil {
+			return nil, errors.Wrap(err, response.ErrMsgBlockUpdates)
+		}
+		if !blocked {
+			recipientsSet[subscriberEmail] = struct{}{}
+		}
+	}
+
+	for _, email := range mentionedEmails {
+		mentionedUser, err := serv.repo.GetUserByEmail(ctx, email)
+		if err == nil {
+			blocked, err := serv.repo.HasBlockedUpdates(ctx, mentionedUser.Email, senderEmail)
+			if err != nil {
+				return nil, errors.Wrap(err, response.ErrMsgBlockUpdates)
+			}
+			if !blocked {
+				recipientsSet[mentionedUser.Email] = struct{}{}
+			}
+		}
+	}
+
+	recipients := make([]string, 0, len(recipientsSet))
+	for email := range recipientsSet {
+		recipients = append(recipients, email)
+	}
+
+	return recipients, nil
+}
+
+func extractMentionedEmails(text string) []string {
+	words := strings.Fields(text)
+	var emails []string
+	for _, word := range words {
+		if strings.Contains(word, "@") {
+			emails = append(emails, word)
+		}
+	}
+	return emails
 }

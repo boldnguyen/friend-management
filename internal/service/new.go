@@ -13,6 +13,7 @@ type FriendService interface {
 	GetCommonFriends(ctx context.Context, email1, email2 string) ([]string, error)
 	SubscribeUpdates(ctx context.Context, requestor, target string) error
 	BlockUpdates(ctx context.Context, requestor, target string) error
+	GetEligibleRecipients(ctx context.Context, senderEmail, text string) ([]string, error)
 }
 
 // friendService implements the FriendService interface.

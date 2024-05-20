@@ -31,6 +31,16 @@ type BlockUpdatesRequest struct {
 	Target    string `json:"target" validate:"required,email"`
 }
 
+type getRecipientsRequest struct {
+	Sender string `json:"sender"`
+	Text   string `json:"text"`
+}
+
+type getRecipientsResponse struct {
+	Success    bool     `json:"success"`
+	Recipients []string `json:"recipients"`
+}
+
 // NewHandler creates a new HTTP handler for creating a friend connection.
 func NewHandler(friendService service.FriendService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -174,5 +184,31 @@ func BlockUpdatesHandler(friendService service.FriendService) http.HandlerFunc {
 
 		// Respond with success
 		response.RespondSuccess(ctx, w, map[string]bool{"success": true})
+	}
+}
+
+func GetRecipientsHandler(friendService service.FriendService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req getRecipientsRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		recipients, err := friendService.GetEligibleRecipients(r.Context(), req.Sender, req.Text)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		res := getRecipientsResponse{
+			Success:    true,
+			Recipients: recipients,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(res); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }

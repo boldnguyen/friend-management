@@ -173,3 +173,47 @@ func (repo *friendRepository) BlockUser(ctx context.Context, requestorID, target
 	}
 	return nil
 }
+
+// GetSubscribers retrieves the list of subscribers for a given user ID.
+func (repo *friendRepository) GetSubscribers(ctx context.Context, userID int) ([]string, error) {
+	subscriptions, err := models.Subscriptions(
+		qm.Select("requestor"),
+		qm.Where("target = ?", userID),
+	).All(ctx, repo.DB)
+	if err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
+	}
+
+	var subscribers []string
+	for _, sub := range subscriptions {
+		user, err := models.Users(qm.Where("id = ?", sub.Requestor)).One(ctx, repo.DB)
+		if err != nil {
+			return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
+		}
+		subscribers = append(subscribers, user.Email)
+	}
+
+	return subscribers, nil
+}
+
+// HasBlockedUpdates checks if the target user has blocked updates from the sender.
+func (repo *friendRepository) HasBlockedUpdates(ctx context.Context, targetEmail, senderEmail string) (bool, error) {
+	targetUser, err := repo.GetUserByEmail(ctx, targetEmail)
+	if err != nil {
+		return false, errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	senderUser, err := repo.GetUserByEmail(ctx, senderEmail)
+	if err != nil {
+		return false, errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	exists, err := models.Blocks(
+		qm.Where("requestor = ? AND target = ?", targetUser.ID, senderUser.ID),
+	).Exists(ctx, repo.DB)
+	if err != nil {
+		return false, errors.Wrap(err, response.ErrMsgBlockUpdates)
+	}
+
+	return exists, nil
+}
