@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"log"
-	"strings"
+	"regexp"
 
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
 	"github.com/pkg/errors"
@@ -222,6 +222,17 @@ func (serv *friendService) GetEligibleRecipients(ctx context.Context, senderEmai
 		}
 	}
 
+	// Remove blocked recipients
+	for recipientEmail := range recipientsSet {
+		blocked, err := serv.repo.HasBlockedUpdates(ctx, senderEmail, recipientEmail)
+		if err != nil {
+			return nil, errors.Wrap(err, response.ErrMsgBlockUpdates)
+		}
+		if blocked {
+			delete(recipientsSet, recipientEmail)
+		}
+	}
+
 	recipients := make([]string, 0, len(recipientsSet))
 	for email := range recipientsSet {
 		recipients = append(recipients, email)
@@ -231,12 +242,14 @@ func (serv *friendService) GetEligibleRecipients(ctx context.Context, senderEmai
 }
 
 func extractMentionedEmails(text string) []string {
-	words := strings.Fields(text)
-	var emails []string
-	for _, word := range words {
-		if strings.Contains(word, "@") {
-			emails = append(emails, word)
-		}
-	}
+	// Regular expression pattern for matching email addresses
+	emailPattern := `\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`
+
+	// Compile the regex pattern
+	regex := regexp.MustCompile(emailPattern)
+
+	// Find all email addresses in the text
+	emails := regex.FindAllString(text, -1)
+
 	return emails
 }

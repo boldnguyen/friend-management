@@ -28,6 +28,7 @@ const (
 	ErrMsgUnsubscribeUpdates        = "failed to unsubscribe updates"
 	ErrMsgRemoveSubscription        = "failed to remove subscription"
 	ErrMsgBlockUser                 = "failed to block user"
+	ErrMsgGetSubscribers            = "failed to get subscribers"
 )
 
 // RespondSuccess responds basic success response

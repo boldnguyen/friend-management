@@ -187,17 +187,18 @@ func BlockUpdatesHandler(friendService service.FriendService) http.HandlerFunc {
 	}
 }
 
+// GetRecipientsHandler creates a new HTTP handler for get recipient.
 func GetRecipientsHandler(friendService service.FriendService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req getRecipientsRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			response.RespondErr(r.Context(), w, http.StatusBadRequest, response.ErrMsgDecodeRequest)
 			return
 		}
 
 		recipients, err := friendService.GetEligibleRecipients(r.Context(), req.Sender, req.Text)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			response.RespondErr(r.Context(), w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -208,7 +209,8 @@ func GetRecipientsHandler(friendService service.FriendService) http.HandlerFunc 
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(res); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			response.RespondErr(r.Context(), w, http.StatusInternalServerError, err.Error())
+			return
 		}
 	}
 }

@@ -351,3 +351,67 @@ func TestBlockUpdatesHandler_BlockUpdates(t *testing.T) {
 		})
 	}
 }
+
+// TestGetRecipientsHandler_GetRecipients tests the GetRecipientsHandler function for retrieving recipients.
+func TestGetRecipientsHandler_GetRecipients(t *testing.T) {
+	type mockService struct {
+		expCall bool                 // Whether the service method is expected to be called
+		input   getRecipientsRequest // Input data expected to be passed to the service method
+		output  []string             // Output data to be returned by the service method
+		err     error                // Error expected to be returned by the service method
+	}
+
+	// Define test cases for different scenarios
+	tcs := map[string]struct {
+		req      getRecipientsRequest // Input request data
+		mockFn   mockService          // Function to set up mock
+		expCode  int                  // expected HTTP response code
+		expError string               // expected error message
+	}{
+		"success": {
+			req:     getRecipientsRequest{Sender: "sender@example.com", Text: "Hello World!"},
+			mockFn:  mockService{expCall: true, input: getRecipientsRequest{Sender: "sender@example.com", Text: "Hello World!"}, output: []string{"recipient@example.com"}, err: nil},
+			expCode: http.StatusOK,
+		},
+		"error": {
+			req:      getRecipientsRequest{Sender: "sender@example.com", Text: "Hello World!"},
+			mockFn:   mockService{expCall: true, input: getRecipientsRequest{Sender: "sender@example.com", Text: "Hello World!"}, output: nil, err: errors.New("failed to decode JSON data from request body")},
+			expCode:  http.StatusInternalServerError,
+			expError: response.ErrMsgDecodeRequest,
+		},
+	}
+
+	// Iterate over each test case
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			mockFriendService := new(service.MockFriendService)
+			if tc.mockFn.expCall {
+				mockFriendService.On("GetEligibleRecipients", mock.Anything, tc.mockFn.input.Sender, tc.mockFn.input.Text).Return(tc.mockFn.output, tc.mockFn.err)
+			}
+			getRecipientsHandler := GetRecipientsHandler(mockFriendService)
+
+			// Marshal input data to JSON
+			body, _ := json.Marshal(tc.req)
+			// Create HTTP request with the JSON payload
+			req, err := http.NewRequest("POST", "/recipients", bytes.NewBuffer(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+
+			// When
+			// Call the handler function to handle the HTTP request
+			getRecipientsHandler.ServeHTTP(rr, req)
+
+			// Then
+			// Assert the HTTP response code
+			require.Equal(t, tc.expCode, rr.Code)
+			// If an error message is expected, assert its presence in the response body
+			if tc.expError != "" {
+				require.True(t, strings.Contains(rr.Body.String(), tc.expError))
+			}
+			// Assert that the expected calls to the mock service were made
+			mockFriendService.AssertExpectations(t)
+		})
+	}
+}

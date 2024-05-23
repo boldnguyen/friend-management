@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/boldnguyen/friend-management/internal/models"
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
@@ -176,21 +177,31 @@ func (repo *friendRepository) BlockUser(ctx context.Context, requestorID, target
 
 // GetSubscribers retrieves the list of subscribers for a given user ID.
 func (repo *friendRepository) GetSubscribers(ctx context.Context, userID int) ([]string, error) {
-	subscriptions, err := models.Subscriptions(
-		qm.Select("requestor"),
-		qm.Where("target = ?", userID),
-	).All(ctx, repo.DB)
+	userIDStr := strconv.Itoa(userID) // Chuyển đổi userID từ int sang string
+
+	query := `
+        SELECT u.email
+        FROM users u
+        JOIN subscriptions s ON u.id = CAST(s.requestor AS INTEGER)
+        WHERE s.target = $1;
+    `
+
+	rows, err := repo.DB.QueryContext(ctx, query, userIDStr)
 	if err != nil {
 		return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
 	}
+	defer rows.Close()
 
 	var subscribers []string
-	for _, sub := range subscriptions {
-		user, err := models.Users(qm.Where("id = ?", sub.Requestor)).One(ctx, repo.DB)
-		if err != nil {
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
 			return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
 		}
-		subscribers = append(subscribers, user.Email)
+		subscribers = append(subscribers, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
 	}
 
 	return subscribers, nil

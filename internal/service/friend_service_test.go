@@ -440,3 +440,76 @@ func TestBlockUpdates(t *testing.T) {
 		})
 	}
 }
+func TestGetEligibleRecipients(t *testing.T) {
+	// mockRepoService defines the expected behavior of the mock repository.
+	type mockRepoService struct {
+		expGetUserByEmail    map[string]*models.User // Expected GetUserByEmail return values
+		expGetFriendsList    []string                // Expected GetFriendsList return value
+		expGetSubscribers    []string                // Expected GetSubscribers return value
+		expHasBlockedUpdates map[string]bool         // Expected HasBlockedUpdates return values for each recipient
+		expErr               error                   // Expected error
+	}
+
+	// Define test cases for different scenarios
+	tcs := map[string]struct {
+		senderEmail   string          // Sender's email
+		text          string          // Text containing mentioned emails
+		mockFn        mockRepoService // Function to set up mock
+		expError      string          // Expected error message
+		expRecipients []string        // Expected list of eligible recipients
+	}{
+		"success_no_mentions": {
+			senderEmail: "sender@example.com",
+			text:        "Hello World!",
+			mockFn: mockRepoService{
+				expGetUserByEmail:    map[string]*models.User{"sender@example.com": {ID: 1}},
+				expGetFriendsList:    []string{"friend1@example.com", "friend2@example.com"},
+				expGetSubscribers:    []string{"subscriber1@example.com", "subscriber2@example.com"},
+				expHasBlockedUpdates: map[string]bool{"friend1@example.com": false, "friend2@example.com": false, "subscriber1@example.com": false, "subscriber2@example.com": false},
+				expErr:               nil,
+			},
+			expError:      "",
+			expRecipients: []string{"friend1@example.com", "friend2@example.com", "subscriber1@example.com", "subscriber2@example.com"},
+		},
+		// Add other test cases...
+	}
+
+	for desc, tc := range tcs {
+		t.Run(desc, func(t *testing.T) {
+			// Given
+			mockRepo := new(repository.MockRepo)
+			friendService := NewFriendService(mockRepo)
+
+			// Set up mock expectations for GetUserByEmail
+			mockRepo.On("GetUserByEmail", mock.Anything, tc.senderEmail).Return(tc.mockFn.expGetUserByEmail[tc.senderEmail], nil).Once()
+
+			// Set up mock expectations for GetFriendsList
+			mockRepo.On("GetFriendsList", mock.Anything, mock.AnythingOfType("int")).Return(tc.mockFn.expGetFriendsList, tc.mockFn.expErr).Once()
+
+			// Set up mock expectations for GetSubscribers
+			mockRepo.On("GetSubscribers", mock.Anything, mock.AnythingOfType("int")).Return(tc.mockFn.expGetSubscribers, tc.mockFn.expErr).Once()
+
+			// Set up mock expectations for HasBlockedUpdates
+			for _, recipient := range append(tc.mockFn.expGetFriendsList, append(tc.mockFn.expGetSubscribers, extractMentionedEmails(tc.text)...)...) {
+				// Use Times to specify the number of expected calls
+				mockRepo.On("HasBlockedUpdates", context.Background(), recipient, tc.senderEmail).Return(tc.mockFn.expHasBlockedUpdates[recipient], nil).Once()
+			}
+
+			// When
+			recipients, err := friendService.GetEligibleRecipients(context.Background(), tc.senderEmail, tc.text)
+
+			// Then
+			if tc.expError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expError)
+				require.Nil(t, recipients)
+			} else {
+				require.NoError(t, err)
+				require.ElementsMatch(t, tc.expRecipients, recipients)
+			}
+
+			// Assert that the expected calls to the mock repository were made
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
