@@ -40,3 +40,9 @@ func (m *MockFriendService) BlockUpdates(ctx context.Context, requestor, target 
 	args := m.Called(ctx, requestor, target)
 	return args.Error(0)
 }
+
+// GetEligibleRecipients mocks the GetEligibleRecipients method of the FriendService interface.
+func (m *MockFriendService) GetEligibleRecipients(ctx context.Context, senderEmail, text string) ([]string, error) {
+	args := m.Called(ctx, senderEmail, text)
+	return args.Get(0).([]string), args.Error(1)
+}

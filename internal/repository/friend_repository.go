@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/boldnguyen/friend-management/internal/models"
 	"github.com/boldnguyen/friend-management/internal/pkg/response"
@@ -172,4 +173,58 @@ func (repo *friendRepository) BlockUser(ctx context.Context, requestorID, target
 		return errors.Wrap(err, response.ErrMsgBlockUpdates)
 	}
 	return nil
+}
+
+// GetSubscribers retrieves the list of subscribers for a given user ID.
+func (repo *friendRepository) GetSubscribers(ctx context.Context, userID int) ([]string, error) {
+	userIDStr := strconv.Itoa(userID) // Chuyển đổi userID từ int sang string
+
+	query := `
+        SELECT u.email
+        FROM users u
+        JOIN subscriptions s ON u.id = CAST(s.requestor AS INTEGER)
+        WHERE s.target = $1;
+    `
+
+	rows, err := repo.DB.QueryContext(ctx, query, userIDStr)
+	if err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
+	}
+	defer rows.Close()
+
+	var subscribers []string
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
+		}
+		subscribers = append(subscribers, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, response.ErrMsgCheckSubscription)
+	}
+
+	return subscribers, nil
+}
+
+// HasBlockedUpdates checks if the target user has blocked updates from the sender.
+func (repo *friendRepository) HasBlockedUpdates(ctx context.Context, targetEmail, senderEmail string) (bool, error) {
+	targetUser, err := repo.GetUserByEmail(ctx, targetEmail)
+	if err != nil {
+		return false, errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	senderUser, err := repo.GetUserByEmail(ctx, senderEmail)
+	if err != nil {
+		return false, errors.Wrap(err, response.ErrMsgGetUserByEmail)
+	}
+
+	exists, err := models.Blocks(
+		qm.Where("requestor = ? AND target = ?", targetUser.ID, senderUser.ID),
+	).Exists(ctx, repo.DB)
+	if err != nil {
+		return false, errors.Wrap(err, response.ErrMsgBlockUpdates)
+	}
+
+	return exists, nil
 }
