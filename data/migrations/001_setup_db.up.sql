@@ -23,13 +23,10 @@ CREATE TABLE friend_connections (
 -- Create subscriptions table
 CREATE TABLE subscriptions (
     id SERIAL PRIMARY KEY,
-    requestor INT NOT NULL,
-    target INT NOT NULL,
+    requestor VARCHAR(255) NOT NULL REFERENCES users(email),
+    target VARCHAR(255) NOT NULL REFERENCES users(email),
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (requestor, target),
-    FOREIGN KEY (requestor) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (target) REFERENCES users(id) ON DELETE CASCADE,
-    CHECK (requestor <> target) -- Ensures a user cannot subscribe to themselves
+    UNIQUE (requestor, target)
 );
 
 -- Create blocks table

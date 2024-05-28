@@ -1,3 +1,4 @@
--- Insert test data here
-INSERT INTO subscriptions (requestor, target) VALUES ('user1@example.com','user2@example.com');
-
+-- subscriptions.sql
+INSERT INTO subscriptions (requestor, target) VALUES 
+('andy@example.com','john@example.com') -- user1 follows user2
+ON CONFLICT (requestor, target) DO NOTHING;
